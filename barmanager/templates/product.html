@@ -8,7 +8,7 @@
       {% if location %}<a href="/locaties/{{ location.id }}">{{ location.name }}</a> /{% endif %}</div>
     <h1>{{ p.name or 'Onbekend product' }}</h1>
     <div class="card-meta">
-      <span class="badge" style="--c: {{ cat_color(p.category) }}">{{ cat_label(p.category) }}</span>
+      {% for c in cats %}<span class="badge" style="--c: {{ cat_color(c) }}">{{ cat_label(c) }}</span>{% endfor %}
       <span class="mono muted">{{ p.barcode }}</span>
     </div>
   </div>
@@ -101,7 +101,7 @@
       <label>Naam <input name="name" value="{{ p.name }}" maxlength="150" {{ 'autofocus' if not p.name and p.lookup_status != 'pending' }}></label>
       <div class="grid2">
         <label>Merk <input name="brand" value="{{ p.brand }}" maxlength="100"></label>
-        <label>Categorie
+        <label>Hoofdcategorie
           <select name="category">
             {% for key, label, color in CATEGORIES %}<option value="{{ key }}" {{ 'selected' if key == p.category }}>{{ label }}</option>{% endfor %}
           </select>
@@ -109,11 +109,18 @@
         <label>Inhoud (ml) <input name="volume_ml" type="number" min="1" value="{{ p.volume_ml or '' }}" placeholder="700"></label>
         <label>Alcohol (%) <input name="abv" inputmode="decimal" value="{{ '%g'|format(p.abv) if p.abv is not none else '' }}" placeholder="40"></label>
       </div>
+      <fieldset class="cat-extra">
+        <legend>Valt ook onder <span class="muted small">(bijv. Jim Beam Peach: whisky én likeur)</span></legend>
+        {% for key, label, color in CATEGORIES %}{% if key != 'overig' %}
+        <label class="check-chip" style="--c: {{ color }}"><input type="checkbox" name="extra" value="{{ key }}"
+          {{ 'checked' if key in cats[1:] }}> {{ label }}</label>
+        {% endif %}{% endfor %}
+      </fieldset>
       <label>Omschrijving <textarea name="description" rows="3" maxlength="2000">{{ p.description }}</textarea></label>
       <div class="row">
         <button>Opslaan</button>
         <span class="muted small">
-          {% if p.category_locked %}Categorie handmatig gekozen.{% else %}Categorie automatisch bepaald.{% endif %}
+          {% if p.category_locked %}Categorieën handmatig gekozen.{% else %}Categorieën automatisch bepaald.{% endif %}
           {% if p.source %}Bron: {{ p.source }}.{% endif %}
         </span>
       </div>

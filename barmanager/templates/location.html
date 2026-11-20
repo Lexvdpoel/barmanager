@@ -28,7 +28,7 @@
 </form>
 
 <div class="chips">
-  <a class="chip {{ 'on' if not cat }}" href="{{ url_with(cat='') }}">Alle <span>{{ counts.values()|sum }}</span></a>
+  <a class="chip {{ 'on' if not cat }}" href="{{ url_with(cat='') }}">Alle <span>{{ counts['_all'] }}</span></a>
   {% for key, label, color in CATEGORIES %}{% if counts.get(key) %}
   <a class="chip {{ 'on' if cat == key }}" style="--c: {{ color }}" href="{{ url_with(cat=key) }}">{{ label }} <span>{{ counts[key] }}</span></a>
   {% endif %}{% endfor %}

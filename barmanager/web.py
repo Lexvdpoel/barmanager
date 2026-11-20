@@ -169,8 +169,8 @@ def _filtered_items(request: Request, lid: int, q: str, cat: str, state: str, so
     if q:
         terms = categories.normalize(q).split()
         def hit(it):
-            hay = categories.normalize(" ".join([it["name"], it["brand"], it["barcode"],
-                                                 categories.label(it["category"]), it["notes"]]))
+            hay = categories.normalize(" ".join([it["name"], it["brand"], it["barcode"], it["notes"],
+                                                 *[categories.label(c) for c in it["cats"]]]))
             return all(t in hay for t in terms)
         items = [it for it in items if hit(it)]
     if state == "voorraad":
@@ -179,11 +179,12 @@ def _filtered_items(request: Request, lid: int, q: str, cat: str, state: str, so
         items = [it for it in items if it["state"] == "bijna"]
     elif state == "op":
         items = [it for it in items if it["state"] == "op"]
-    counts: dict[str, int] = {}
+    counts: dict[str, int] = {"_all": len(items)}
     for it in items:
-        counts[it["category"]] = counts.get(it["category"], 0) + 1
+        for c in it["cats"]:
+            counts[c] = counts.get(c, 0) + 1
     if cat:
-        items = [it for it in items if it["category"] == cat]
+        items = [it for it in items if cat in it["cats"]]
     key_name = lambda it: ((it["name"] or "~").lower(), it["barcode"])
     if sort == "naam":
         items.sort(key=key_name)
@@ -206,10 +207,13 @@ def location_page(request: Request, lid: int, user=Depends(require_user), q: str
     items, counts = _filtered_items(request, lid, q.strip(), cat, staat, sort)
     groups = []
     if sort == "categorie":
+        # A drink with two categories (e.g. whisky + liqueur) shows up in both groups.
+        by_cat: dict[str, list] = {}
         for it in items:
-            if not groups or groups[-1][0] != it["category"]:
-                groups.append((it["category"], []))
-            groups[-1][1].append(it)
+            for c in it["cats"]:
+                if not cat or c == cat:
+                    by_cat.setdefault(c, []).append(it)
+        groups = sorted(by_cat.items(), key=lambda g: categories.ORDER.get(g[0], 99))
     total = db_of(request).one("SELECT COUNT(*) AS n, COALESCE(SUM(quantity),0) AS b FROM inventory "
                                "WHERE location_id=?", lid)
 
@@ -236,10 +240,11 @@ def export_csv(request: Request, lid: int, user=Depends(require_user)):
     items, _ = _filtered_items(request, lid, "", "", "", "categorie")
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";")
-    w.writerow(["categorie", "naam", "merk", "barcode", "inhoud_ml", "alcohol_pct", "aantal",
+    w.writerow(["categorie", "ook_in", "naam", "merk", "barcode", "inhoud_ml", "alcohol_pct", "aantal",
                 "minimum", "notities"])
     for it in items:
-        w.writerow([categories.label(it["category"]), it["name"], it["brand"], it["barcode"],
+        w.writerow([categories.label(it["category"]), ", ".join(categories.label(c) for c in it["cats"][1:]),
+                    it["name"], it["brand"], it["barcode"],
                     it["volume_ml"] or "", it["abv"] if it["abv"] is not None else "",
                     it["quantity"], it["min_quantity"], it["notes"]])
     fname = "".join(ch if ch.isalnum() else "-" for ch in loc["name"]).strip("-") or "voorraad"
@@ -356,6 +361,7 @@ def product_page(request: Request, pid: int, user=Depends(require_user), loc: in
                             WHERE m.location_id=? AND m.product_id=? ORDER BY m.created_at DESC LIMIT 15""",
                          loc, pid)
     return render(request, "product.html", p=p, photos=service.product_images(db, pid),
+                  cats=service.product_categories(p),
                   location=location, item=item, history=history,
                   brave=bool(request.app.state.settings.brave_api_key))
 
@@ -368,18 +374,21 @@ def _product_url(pid: int, loc: str | int | None) -> str:
 @router.post("/producten/{pid}")
 def save_product(request: Request, pid: int, user=Depends(require_user), csrf: str = Form(""),
                  loc: str = Form(""), name: str = Form(""), brand: str = Form(""),
-                 category: str = Form("overig"), volume_ml: str = Form(""), abv: str = Form(""),
-                 description: str = Form("")):
+                 category: str = Form("overig"), extra: list[str] = Form([]), volume_ml: str = Form(""),
+                 abv: str = Form(""), description: str = Form("")):
     check_csrf(request, csrf)
     p = get_product(request, pid)
     db = db_of(request)
     category = category if categories.valid(category) else p["category"]
-    locked = 1 if (p["category_locked"] or category != p["category"]) else 0
+    extra_s = ",".join(c for c in categories.KEYS if c in extra and c != category)
+    changed = category != p["category"] or extra_s != (p["extra_categories"] or "")
+    locked = 1 if (p["category_locked"] or changed) else 0
     abv_v = _float(abv)
-    db.run("""UPDATE products SET name=?, brand=?, category=?, category_locked=?, volume_ml=?, abv=?,
+    db.run("""UPDATE products SET name=?, brand=?, category=?, extra_categories=?, category_locked=?,
+              volume_ml=?, abv=?,
               description=?, lookup_status=CASE WHEN lookup_status='pending' THEN 'pending' ELSE 'manual' END,
               updated_at=? WHERE id=?""",
-           name.strip()[:150], brand.strip()[:100], category, locked,
+           name.strip()[:150], brand.strip()[:100], category, extra_s, locked,
            _int(volume_ml, None, 1, 100000), abv_v if abv_v is not None and 0 <= abv_v <= 100 else None,
            description.strip()[:2000], time.time(), pid)
     if not locked and category == categories.DEFAULT:

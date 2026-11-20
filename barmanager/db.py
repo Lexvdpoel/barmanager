@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS products(
     brand TEXT NOT NULL DEFAULT '',
     category TEXT NOT NULL DEFAULT 'overig',
     category_locked INTEGER NOT NULL DEFAULT 0,
+    extra_categories TEXT NOT NULL DEFAULT '',   -- comma separated, e.g. 'likeur'
     volume_ml INTEGER,
     abv REAL,
     description TEXT NOT NULL DEFAULT '',
@@ -89,6 +90,12 @@ class Database:
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.executescript(SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(products)")}
+        if "extra_categories" not in cols:
+            self._conn.execute("ALTER TABLE products ADD COLUMN extra_categories TEXT NOT NULL DEFAULT ''")
 
     def one(self, sql: str, *args):
         with self._lock:

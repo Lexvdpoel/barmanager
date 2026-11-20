@@ -49,11 +49,14 @@
       if (!m || !card) return f.submit();
       try {
         const p = await window.BM.api(`/api/locaties/${m[1]}/items/${m[2]}/aanpassen`, { delta });
-        card.querySelector(".qty-n").textContent = p.quantity;
-        card.querySelector("button[aria-label='Eén minder']").disabled = p.quantity <= 0;
-        const min = parseInt((card.querySelector(".qty-n").title || "").replace(/\D/g, ""), 10) || 0;
-        card.classList.remove("st-op", "st-bijna", "st-ok");
-        card.classList.add(p.quantity <= 0 ? "st-op" : (min && p.quantity <= min ? "st-bijna" : "st-ok"));
+        // A product with two categories is shown twice; update every copy.
+        document.querySelectorAll(`.card[data-pid="${m[2]}"]`).forEach((el) => {
+          el.querySelector(".qty-n").textContent = p.quantity;
+          el.querySelector("button[aria-label='Eén minder']").disabled = p.quantity <= 0;
+          const min = parseInt((el.querySelector(".qty-n").title || "").replace(/\D/g, ""), 10) || 0;
+          el.classList.remove("st-op", "st-bijna", "st-ok");
+          el.classList.add(p.quantity <= 0 ? "st-op" : (min && p.quantity <= min ? "st-bijna" : "st-ok"));
+        });
       } catch (err) {
         f.submit();
       }

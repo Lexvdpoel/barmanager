@@ -10,7 +10,7 @@
   <div class="card-body">
     <a class="card-title" href="/producten/{{ it.id }}?loc={{ loc.id }}">{{ it.name or 'Onbekend product' }}</a>
     <div class="card-meta">
-      <span class="badge" style="--c: {{ cat_color(it.category) }}">{{ cat_label(it.category) }}</span>
+      {% for c in it.cats %}<span class="badge" style="--c: {{ cat_color(c) }}">{{ cat_label(c) }}</span>{% endfor %}
       {% if it.volume_ml %}<span>{{ '%g'|format(it.volume_ml / 10) }} cl</span>{% endif %}
       {% if it.abv %}<span>{{ '%g'|format(it.abv) }}%</span>{% endif %}
     </div>

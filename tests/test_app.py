@@ -139,3 +139,24 @@ def test_photo_upload(admin):
     r = c.post(f"/producten/{pid}/fotos", data={"csrf": csrf},
                files={"file": ("x.png", b"<svg/>", "image/png")}, follow_redirects=False)
     assert "err=" in r.headers["location"]
+
+
+def test_two_categories(admin):
+    c, csrf = admin
+    lid = make_location(c, csrf)
+    pid = scan(c, csrf, lid, "1111111111116").json()["id"]
+    c.post(f"/producten/{pid}", data={"csrf": csrf, "name": "Jim Beam Peach", "category": "overig"})
+    p = c.get(f"/api/producten/{pid}").json()
+    assert [x["key"] for x in p["categories"]] == ["whisky", "likeur"]
+    assert "Jim Beam Peach" in c.get(f"/locaties/{lid}?cat=whisky").text
+    assert "Jim Beam Peach" in c.get(f"/locaties/{lid}?cat=likeur").text
+    page = c.get(f"/locaties/{lid}").text
+    assert page.count("Jim Beam Peach</a>") == 2      # in the whisky and the liqueur group
+    # Manually remove the second category.
+    c.post(f"/producten/{pid}", data={"csrf": csrf, "name": "Jim Beam Peach", "category": "whisky"})
+    assert [x["key"] for x in c.get(f"/api/producten/{pid}").json()["categories"]] == ["whisky"]
+    c.post(f"/producten/{pid}", data={"csrf": csrf, "name": "Jim Beam Peach", "category": "whisky",
+                                      "extra": ["likeur", "additief"]})
+    keys = [x["key"] for x in c.get(f"/api/producten/{pid}").json()["categories"]]
+    assert keys == ["whisky", "likeur", "additief"]
+    assert "Alle <span>1</span>" in page

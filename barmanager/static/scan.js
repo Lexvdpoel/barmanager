@@ -69,7 +69,7 @@
       <div class="card-body">
         <a class="card-title" href="${esc(p.url)}">${esc(p.display_name)}</a>
         <div class="card-meta">
-          <span class="badge" style="--c:${esc(p.category_color)}">${esc(p.category_label)}</span>
+          ${(p.categories || []).map((c) => `<span class="badge" style="--c:${esc(c.color)}">${esc(c.label)}</span>`).join("")}
           <span class="mono">${esc(p.barcode)}</span>
         </div>
         <div class="status ${p.status === "pending" ? "busy" : ""}">${esc(statusText(p))}</div>

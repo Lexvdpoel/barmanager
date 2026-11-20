@@ -32,6 +32,8 @@ def product_json(request: Request, p, location_id: int | None = None) -> dict:
         "category": p["category"],
         "category_label": categories.label(p["category"]),
         "category_color": categories.COLORS.get(p["category"], categories.COLORS["overig"]),
+        "categories": [{"key": c, "label": categories.label(c), "color": categories.COLORS[c]}
+                       for c in service.product_categories(p)],
         "volume_ml": p["volume_ml"],
         "abv": p["abv"],
         "status": p["lookup_status"],

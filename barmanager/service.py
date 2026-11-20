@@ -87,26 +87,34 @@ def apply_lookup(db: Database, product_id: int, res: LookupResult) -> None:
         status = "not_found"
     if p["lookup_status"] == "manual":
         status = "manual"
-    category = p["category"]
+    category, extra = p["category"], p["extra_categories"]
     if not p["category_locked"] and category == categories.DEFAULT:
-        category = categories.classify(res.tags, [res.name, *res.texts], res.brand, res.web_texts)
+        cats = categories.classify_all(res.tags, [res.name, *res.texts], res.brand, res.web_texts)
+        category, extra = cats[0], ",".join(cats[1:])
     db.run("""UPDATE products SET
                 name = CASE WHEN name='' THEN ? ELSE name END,
                 brand = CASE WHEN brand='' THEN ? ELSE brand END,
                 volume_ml = COALESCE(volume_ml, ?),
                 abv = COALESCE(abv, ?),
                 description = CASE WHEN description='' THEN ? ELSE description END,
-                category = ?, source = ?, lookup_status = ?, updated_at = ?
+                category = ?, extra_categories = ?, source = ?, lookup_status = ?, updated_at = ?
               WHERE id = ?""",
-           res.name, res.brand, res.volume_ml, res.abv, res.description, category,
+           res.name, res.brand, res.volume_ml, res.abv, res.description, category, extra,
            ", ".join(res.sources), status, time.time(), product_id)
 
 
 def reclassify(db: Database, product_id: int) -> None:
     p = db.one("SELECT * FROM products WHERE id=?", product_id)
     if p and not p["category_locked"]:
-        cat = categories.classify(texts=[p["name"], p["description"]], brand=p["brand"])
-        db.run("UPDATE products SET category=? WHERE id=?", cat, product_id)
+        cats = categories.classify_all(texts=[p["name"], p["description"]], brand=p["brand"])
+        db.run("UPDATE products SET category=?, extra_categories=? WHERE id=?",
+               cats[0], ",".join(cats[1:]), product_id)
+
+
+def product_categories(p) -> list[str]:
+    """Main category first, then the extra ones."""
+    extra = [c for c in (p["extra_categories"] or "").split(",") if categories.valid(c) and c != p["category"]]
+    return [p["category"], *extra]
 
 
 # ---- inventory ----------------------------------------------------------------------
@@ -138,7 +146,12 @@ def inventory_rows(db: Database, location_id: int) -> list[dict]:
                 ORDER BY position, id LIMIT 1) AS image
         FROM inventory i JOIN products p ON p.id = i.product_id
         WHERE i.location_id = ?""", location_id)
-    return [dict(r) for r in rows]
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["cats"] = product_categories(r)
+        out.append(d)
+    return out
 
 
 def stock_state(item: dict) -> str:

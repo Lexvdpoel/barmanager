@@ -30,6 +30,7 @@ CATEGORIES: list[tuple[str, str, str]] = [
     ("mixer", "Frisdrank & mixers", "#2f8fc4"),
     ("siroop", "Siroop", "#c43d6b"),
     ("sap", "Sap", "#e08a1e"),
+    ("additief", "Additieven & garnering", "#5f7f6a"),
     ("overig", "Overig", "#7a8494"),
 ]
 KEYS = [c[0] for c in CATEGORIES]
@@ -54,6 +55,12 @@ def _pattern(words: list[str]) -> re.Pattern:
 # Order matters: more specific rules first (e.g. "ginger beer" before beer,
 # "cream liqueur" before whisky, "port wine" before wine).
 _RULE_WORDS: list[tuple[str, list[str]]] = [
+    ("additief", ["cocktail bitters", "aromatic bitters", "orange bitters", "angostura", "peychaud",
+                  "peychaud's", "cocktail cherries", "cocktail cherry", "cocktailkersen", "maraschino cherries",
+                  "luxardo cherries", "cocktail olives", "cocktail onions", "garnish", "garnering", "foamer",
+                  "cocktail foamer", "aquafaba", "egg white", "eiwit", "fruit puree", "vruchtenpuree",
+                  "lime cordial", "cordial", "rimming salt", "rimming sugar", "cocktail mix", "sour mix",
+                  "margarita mix", "bloody mary mix", "cocktail additive", "additief", "additieven"]),
     ("mixer", ["bitter lemon", "ginger ale", "ginger beer", "tonic water", "tonic waters",
                "indian tonic", "tonics"]),
     ("bubbels", ["champagne", "champagnes", "prosecco", "proseccos", "cava", "cremant",
@@ -141,8 +148,10 @@ _BRAND_WORDS: list[tuple[str, list[str]]] = [
     ("brandy", ["hennessy", "remy martin", "martell", "courvoisier", "camus", "metaxa", "otard",
                 "vecchia romagna", "st remy", "asbach", "torres 10", "torres 5", "fundador",
                 "soberano", "osborne veterano", "chabasse", "pere magloire"]),
-    ("bitter", ["campari", "jagermeister", "angostura", "fernet branca", "ramazzotti", "averna",
-                "montenegro", "underberg", "unicum", "peychaud", "peychaud's", "cynar",
+    ("additief", ["angostura", "peychaud", "peychaud's", "fee brothers", "the bitter truth",
+                  "ms better's", "bob's bitters", "luxardo maraschino cherries", "amarena fabbri"]),
+    ("bitter", ["campari", "jagermeister", "fernet branca", "ramazzotti", "averna",
+                "montenegro", "underberg", "unicum", "cynar",
                 "sonnema", "hoppe beerenburg", "boomsma beerenburg", "chartreuse", "becherovka",
                 "killepitsch", "jagerbomb"]),
     ("aperitief", ["aperol", "martini", "cinzano", "noilly prat", "lillet", "dubonnet", "carpano",
@@ -210,16 +219,63 @@ def _vote(text: str) -> str | None:
 
 def classify(tags: list[str] | None = None, texts: list[str] | None = None,
              brand: str = "", web_texts: list[str] | None = None) -> str:
+    """The main category."""
+    return classify_all(tags, texts, brand, web_texts)[0]
+
+
+# Spirits that, flavoured (Jim Beam Peach, Jack Daniel's Honey, ...), are also a liqueur.
+SPIRITS = ("whisky", "rum", "gin", "vodka", "tequila", "brandy", "jenever")
+_FLAVOUR = _pattern(["peach", "perzik", "honey", "honing", "apple", "appel", "cinnamon", "kaneel", "fire",
+                     "vanilla", "vanille", "cherry", "kers", "coconut", "kokos", "caramel", "karamel",
+                     "salted caramel", "raspberry", "framboos", "strawberry", "aardbei", "passion fruit",
+                     "mango", "chocolate", "chocolade", "coffee", "koffie", "cream", "maple", "toffee",
+                     "pineapple", "ananas", "blackberry", "braam", "red stag", "flavoured", "flavored"])
+_LIQUEUR = dict(_RULES[i] for i in range(len(_RULES)) if _RULES[i][0] == "likeur")["likeur"]
+_ALSO = {"port": ["wijn"], "bubbels": ["wijn"]}
+# Tags that are too generic to say anything about a second category.
+_GENERIC_TAGS = re.compile(r"(?<![a-z0-9])eaux? de vie(?![a-z0-9])")
+
+
+def _hits(text: str, rules) -> list[str]:
+    text = normalize(text)
+    return [cat for cat, pattern in rules if text and pattern.search(text)]
+
+
+def classify_all(tags: list[str] | None = None, texts: list[str] | None = None,
+                 brand: str = "", web_texts: list[str] | None = None) -> list[str]:
+    """Main category first, followed by any other categories the drink also belongs to.
+
+    A drink can belong to two categories, e.g. Jim Beam Peach is both whisky and liqueur,
+    a port is also a wine."""
     tags = [t.split(":", 1)[-1] for t in (tags or [])]
     texts = [t for t in (texts or []) if t]
-    found = (
+    main = (
         _first_rule(" | ".join(tags), _RULES)
         or _first_rule(" | ".join(texts), _RULES)
         or _first_rule(" | ".join([brand, *texts]), _BRANDS)
         or _vote(" | ".join(web_texts or []))
         or _first_rule(" | ".join(web_texts or []), _BRANDS)
+        or DEFAULT
     )
-    return found or DEFAULT
+    if main == DEFAULT:
+        return [main]
+    tag_text = _GENERIC_TAGS.sub(" ", normalize(" | ".join(tags)))
+    own = normalize(" | ".join([brand, *texts]))
+    found = set(_hits(tag_text, _RULES)) | set(_hits(own, _RULES)) | set(_hits(own, _BRANDS))
+    extra: set[str] = set()
+    spirits = [c for c in SPIRITS if c in found]
+    if main == "likeur":
+        # Whisky liqueur, rum-based liqueur, ...: also list it under the spirit.
+        extra.update(spirits[:1])
+    elif main in SPIRITS:
+        flavoured = _FLAVOUR.search(own) or _FLAVOUR.search(tag_text)
+        if "likeur" in found and (_LIQUEUR.search(own) or _LIQUEUR.search(tag_text) or flavoured):
+            extra.add("likeur")
+        elif flavoured and main in ("whisky", "rum", "brandy", "tequila"):
+            extra.add("likeur")
+    extra.update(_ALSO.get(main, []))
+    extra.discard(main)
+    return [main, *sorted(extra, key=lambda c: ORDER[c])]
 
 
 def label(key: str) -> str:
