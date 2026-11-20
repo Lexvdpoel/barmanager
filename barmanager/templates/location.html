@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ loc.name }}{% endblock %}
+{% block content %}
+{% set back_url = url_with() %}
+<div class="pagehead">
+  <div>
+    <div class="crumbs"><a href="/locaties">Locaties</a> /</div>
+    <h1>{{ loc.name }}</h1>
+    <div class="muted small">{{ total.b }} flessen · {{ total.n }} producten</div>
+  </div>
+  <div class="actions">
+    <a class="button" href="/locaties/{{ loc.id }}/scannen">Scannen</a>
+    <a class="button secondary" href="/locaties/{{ loc.id }}/export.csv">CSV</a>
+    <a class="button secondary" href="/locaties/{{ loc.id }}/instellingen">Instellingen</a>
+  </div>
+</div>
+
+<form method="get" class="filters" id="filters">
+  <input type="search" name="q" value="{{ q }}" placeholder="Zoek op naam, merk of barcode…" autocomplete="off">
+  {% if cat %}<input type="hidden" name="cat" value="{{ cat }}">{% endif %}
+  <select name="staat" aria-label="Voorraad" data-autosubmit>
+    {% for k, v in STATES.items() %}<option value="{{ k }}" {{ 'selected' if k == staat }}>{{ v }}</option>{% endfor %}
+  </select>
+  <select name="sort" aria-label="Sorteren" data-autosubmit>
+    {% for k, v in SORTS.items() %}<option value="{{ k }}" {{ 'selected' if k == sort }}>{{ v }}</option>{% endfor %}
+  </select>
+  <button class="secondary">Zoeken</button>
+</form>
+
+<div class="chips">
+  <a class="chip {{ 'on' if not cat }}" href="{{ url_with(cat='') }}">Alle <span>{{ counts.values()|sum }}</span></a>
+  {% for key, label, color in CATEGORIES %}{% if counts.get(key) %}
+  <a class="chip {{ 'on' if cat == key }}" style="--c: {{ color }}" href="{{ url_with(cat=key) }}">{{ label }} <span>{{ counts[key] }}</span></a>
+  {% endif %}{% endfor %}
+</div>
+
+{% if not items %}
+  <div class="empty panel">
+    {% if total.n == 0 %}
+      <p><b>Deze locatie is nog leeg.</b></p>
+      <p class="muted">Scan de barcodes van je flessen. Onbekende producten worden automatisch op internet opgezocht, in een categorie ingedeeld en van een foto voorzien.</p>
+      <p><a class="button" href="/locaties/{{ loc.id }}/scannen">Begin met scannen</a></p>
+    {% else %}
+      <p>Niets gevonden met deze filters. <a href="/locaties/{{ loc.id }}">Filters wissen</a></p>
+    {% endif %}
+  </div>
+{% elif groups %}
+  {% for key, group in groups %}
+  <section class="group">
+    <h2 class="group-head"><span class="dot" style="--c: {{ cat_color(key) }}"></span>{{ cat_label(key) }}
+      <span class="muted">{{ group|length }} producten · {{ group|sum(attribute='quantity') }} flessen</span></h2>
+    <div class="cards">{% for it in group %}{% include "_card.html" %}{% endfor %}</div>
+  </section>
+  {% endfor %}
+{% else %}
+  <div class="cards">{% for it in items %}{% include "_card.html" %}{% endfor %}</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}{{ p.name or 'Onbekend product' }}{% endblock %}
+{% block content %}
+{% set back = '/locaties/' ~ location.id if location else '/locaties' %}
+<div class="pagehead">
+  <div>
+    <div class="crumbs"><a href="/locaties">Locaties</a> /
+      {% if location %}<a href="/locaties/{{ location.id }}">{{ location.name }}</a> /{% endif %}</div>
+    <h1>{{ p.name or 'Onbekend product' }}</h1>
+    <div class="card-meta">
+      <span class="badge" style="--c: {{ cat_color(p.category) }}">{{ cat_label(p.category) }}</span>
+      <span class="mono muted">{{ p.barcode }}</span>
+    </div>
+  </div>
+  <div class="actions"><a class="button secondary" href="{{ back }}">Terug</a></div>
+</div>
+
+{% if p.lookup_status == 'pending' %}
+  <div class="flash info" data-autorefresh="3">Dit product wordt op internet opgezocht…</div>
+{% elif p.lookup_status == 'not_found' %}
+  <div class="flash warn">Deze barcode is nergens gevonden. Vul de gegevens hieronder zelf in; daarna wordt automatisch naar een foto gezocht.</div>
+{% elif p.lookup_status == 'guess' %}
+  <div class="flash warn">De naam is overgenomen uit zoekresultaten op internet. Controleer hem even.</div>
+{% endif %}
+
+<div class="product-layout">
+  <div>
+    <div class="photos panel">
+      {% if photos %}
+        <img class="photo-main" src="/images/{{ photos[0].filename }}" alt="">
+        <div class="photo-strip">
+          {% for ph in photos %}
+          <div class="thumb {{ 'on' if loop.first }}">
+            <img src="/images/{{ ph.filename }}" alt="" loading="lazy">
+            <div class="thumb-actions">
+              {% if not loop.first %}
+              <form method="post" action="/producten/{{ p.id }}/fotos/{{ ph.id }}/hoofdfoto">
+                <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
+                <button class="ghost small" title="Als hoofdfoto gebruiken">★</button>
+              </form>
+              {% endif %}
+              <form method="post" action="/producten/{{ p.id }}/fotos/{{ ph.id }}/verwijderen">
+                <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
+                <button class="ghost small" title="Verwijderen">✕</button>
+              </form>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <img class="photo-main ph" src="/static/bottle.svg" alt="">
+        <p class="muted small center">Nog geen foto.</p>
+      {% endif %}
+
+      <details class="photo-add">
+        <summary>Foto toevoegen</summary>
+        <form method="post" action="/producten/{{ p.id }}/fotos" enctype="multipart/form-data" class="stack">
+          <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
+          <label>Foto maken of kiezen <input type="file" name="file" accept="image/*" capture="environment"></label>
+          <label>of afbeeldingsadres (URL) <input name="url" type="url" placeholder="https://…"></label>
+          <button class="secondary">Toevoegen</button>
+        </form>
+      </details>
+      <form method="post" action="/producten/{{ p.id }}/fotos/zoeken">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
+        <button class="secondary wide" {{ 'disabled' if not p.name }}>Foto's zoeken op internet</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="stack-lg">
+    {% if location %}
+    <form method="post" action="/locaties/{{ location.id }}/items/{{ p.id }}" class="panel stack">
+      <h2 class="flush">Voorraad in {{ location.name }}</h2>
+      {% if item %}
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="grid2">
+        <label>Aantal flessen <input name="quantity" type="number" min="0" value="{{ item.quantity }}"></label>
+        <label>Minimum <span class="muted small">(waarschuwing)</span> <input name="min_quantity" type="number" min="0" value="{{ item.min_quantity }}"></label>
+      </div>
+      <label>Notities <input name="notes" value="{{ item.notes }}" maxlength="500" placeholder="bijv. plank 3, aangebroken"></label>
+      <div class="row">
+        <button>Opslaan</button>
+      </div>
+      {% else %}
+      <p class="muted">Dit product staat niet in deze locatie.</p>
+      {% endif %}
+    </form>
+    {% if item %}
+    <form method="post" action="/locaties/{{ location.id }}/items/{{ p.id }}/verwijderen" class="right"
+          data-confirm="Product uit {{ location.name }} verwijderen?">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="ghost small danger">Uit deze locatie verwijderen</button>
+    </form>
+    {% endif %}
+    {% endif %}
+
+    <form method="post" action="/producten/{{ p.id }}" class="panel stack">
+      <h2 class="flush">Productgegevens</h2>
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
+      <label>Naam <input name="name" value="{{ p.name }}" maxlength="150" {{ 'autofocus' if not p.name and p.lookup_status != 'pending' }}></label>
+      <div class="grid2">
+        <label>Merk <input name="brand" value="{{ p.brand }}" maxlength="100"></label>
+        <label>Categorie
+          <select name="category">
+            {% for key, label, color in CATEGORIES %}<option value="{{ key }}" {{ 'selected' if key == p.category }}>{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>Inhoud (ml) <input name="volume_ml" type="number" min="1" value="{{ p.volume_ml or '' }}" placeholder="700"></label>
+        <label>Alcohol (%) <input name="abv" inputmode="decimal" value="{{ '%g'|format(p.abv) if p.abv is not none else '' }}" placeholder="40"></label>
+      </div>
+      <label>Omschrijving <textarea name="description" rows="3" maxlength="2000">{{ p.description }}</textarea></label>
+      <div class="row">
+        <button>Opslaan</button>
+        <span class="muted small">
+          {% if p.category_locked %}Categorie handmatig gekozen.{% else %}Categorie automatisch bepaald.{% endif %}
+          {% if p.source %}Bron: {{ p.source }}.{% endif %}
+        </span>
+      </div>
+    </form>
+    <form method="post" action="/producten/{{ p.id }}/opnieuw-opzoeken" class="right">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
+      <button class="ghost small">Opnieuw opzoeken op internet</button>
+    </form>
+
+    {% if history %}
+    <div class="panel">
+      <h2 class="flush">Laatste wijzigingen</h2>
+      <table class="mini">
+        {% for m in history %}
+        <tr>
+          <td class="num {{ 'pos' if m.delta > 0 else 'neg' }}">{{ '%+d'|format(m.delta) }}</td>
+          <td>{{ m.reason }}</td>
+          <td class="muted">{{ m.username or '?' }}</td>
+          <td class="muted" data-ts="{{ m.created_at }}"></td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+# Compose-opstelling voor een gewone Docker-host.
+# Zet er een reverse proxy met TLS voor (bijv. Nginx Proxy Manager): de camera-scanner
+# in de browser werkt alleen via https.
+
+services:
+  barmanager:
+    image: ghcr.io/lexvdpoel/barmanager:latest
+    container_name: barmanager
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Amsterdam
+      # Eerste beheerder (alleen gebruikt als de database nog leeg is).
+      - BM_ADMIN_USERNAME=admin
+      - BM_ADMIN_PASSWORD=verander-mij
+      # Optioneel: Brave Search API-sleutel voor webzoeken en foto's zoeken.
+      # - BM_BRAVE_API_KEY=
+    volumes:
+      - ./appdata/barmanager:/config
+    ports:
+      - "8080:8080"
+    restart: unless-stopped

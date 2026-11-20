@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Locaties{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <h1>Locaties</h1>
+</div>
+
+{% if locations %}
+<div class="loc-grid">
+  {% for l in locations %}
+  {% set s = stats.get(l.id) %}
+  <a class="loc-card panel" href="/locaties/{{ l.id }}">
+    <div class="loc-name">{{ l.name }}</div>
+    {% if l.description %}<div class="muted small">{{ l.description }}</div>{% endif %}
+    <div class="loc-stats">
+      <span><b>{{ s.bottles if s else 0 }}</b> flessen</span>
+      <span><b>{{ s.products if s else 0 }}</b> producten</span>
+      {% if s and s.low %}<span class="warn"><b>{{ s.low }}</b> bijna op</span>{% endif %}
+      {% if s and s.empty %}<span class="bad"><b>{{ s.empty }}</b> op</span>{% endif %}
+    </div>
+    {% if l.owner_id != user.id %}<div class="muted small">van {{ l.owner }}</div>{% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty panel">
+  <p><b>Nog geen locaties.</b></p>
+  <p class="muted">Maak hieronder je eerste locatie aan, bijvoorbeeld "Thuisbar", "Kelder" of "Café De Hoek".</p>
+</div>
+{% endif %}
+
+<h2>Nieuwe locatie</h2>
+<form method="post" action="/locaties" class="panel row-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input name="name" placeholder="Naam, bijv. Thuisbar" maxlength="100" required>
+  <input name="description" placeholder="Omschrijving (optioneel)" maxlength="500">
+  <button>Aanmaken</button>
+</form>
+{% endblock %}

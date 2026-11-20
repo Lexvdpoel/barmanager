@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Instellingen · {{ loc.name }}{% endblock %}
+{% block main_class %}medium{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div>
+    <div class="crumbs"><a href="/locaties">Locaties</a> / <a href="/locaties/{{ loc.id }}">{{ loc.name }}</a> /</div>
+    <h1>Instellingen</h1>
+  </div>
+</div>
+
+{% if manage %}
+<form method="post" action="/locaties/{{ loc.id }}/instellingen" class="panel stack">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label>Naam <input name="name" value="{{ loc.name }}" maxlength="100" required></label>
+  <label>Omschrijving <input name="description" value="{{ loc.description }}" maxlength="500"></label>
+  <div class="row"><button>Opslaan</button></div>
+</form>
+{% endif %}
+
+<h2>Toegang</h2>
+<div class="panel stack">
+  <p>Eigenaar: <b>{{ owner }}</b></p>
+  {% if members %}
+  <table class="mini">
+    {% for m in members %}
+    <tr><td>{{ m.username }}</td><td class="right">
+      {% if manage %}
+      <form method="post" action="/locaties/{{ loc.id }}/leden/{{ m.id }}/verwijderen" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="ghost small danger">Intrekken</button>
+      </form>
+      {% endif %}
+    </td></tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="muted">Alleen de eigenaar en beheerders hebben toegang.</p>
+  {% endif %}
+  {% if manage %}
+  <form method="post" action="/locaties/{{ loc.id }}/leden" class="row-form">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input name="username" placeholder="Gebruikersnaam" required>
+    <button class="secondary">Toegang geven</button>
+  </form>
+  <p class="muted small">Leden kunnen scannen en de voorraad aanpassen, maar de locatie niet hernoemen of verwijderen.</p>
+  {% endif %}
+</div>
+
+{% if manage %}
+<h2>Locatie verwijderen</h2>
+<form method="post" action="/locaties/{{ loc.id }}/verwijderen" class="panel stack">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <p class="muted">Hiermee verdwijnt de voorraad van deze locatie. De producten zelf (namen, foto's) blijven bewaard voor andere locaties.</p>
+  <label>Typ <b>{{ loc.name }}</b> om te bevestigen <input name="confirm" autocomplete="off"></label>
+  <div class="row"><button class="danger">Definitief verwijderen</button></div>
+</form>
+{% endif %}
+{% endblock %}

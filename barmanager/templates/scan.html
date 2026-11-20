@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Scannen · {{ loc.name }}{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div>
+    <div class="crumbs"><a href="/locaties">Locaties</a> / <a href="/locaties/{{ loc.id }}">{{ loc.name }}</a> /</div>
+    <h1>Scannen</h1>
+  </div>
+  <div class="actions"><a class="button secondary" href="/locaties/{{ loc.id }}">Klaar</a></div>
+</div>
+
+<div id="scanner" class="scan-layout" data-location="{{ loc.id }}">
+  <div class="scan-left">
+    <div class="seg" role="group" aria-label="Wat wil je doen?">
+      <button type="button" class="seg-btn on" data-mode="add" aria-pressed="true">+ Toevoegen</button>
+      <button type="button" class="seg-btn" data-mode="remove" aria-pressed="false">− Afboeken</button>
+    </div>
+
+    <div class="camera panel">
+      <div class="video-wrap" id="videoWrap" hidden>
+        <video id="video" playsinline muted></video>
+        <div class="aim"></div>
+      </div>
+      <div class="cam-off" id="camOff">
+        <p>Richt de camera van je telefoon op de barcode van de fles.</p>
+        <p class="muted small" id="camNote"></p>
+      </div>
+      <div class="cam-controls">
+        <button type="button" id="camToggle">Camera starten</button>
+        <select id="camSelect" hidden aria-label="Camera"></select>
+      </div>
+    </div>
+
+    <form id="manual" class="panel row-form" autocomplete="off">
+      <input id="code" inputmode="numeric" placeholder="Barcode typen of handscanner" aria-label="Barcode">
+      <label class="qty-label">Aantal <input id="qty" type="number" min="1" max="1000" value="1"></label>
+      <button>OK</button>
+    </form>
+  </div>
+
+  <div class="scan-right">
+    <h2>Gescand <span class="muted" id="scanCount"></span></h2>
+    <div id="feed" class="feed"><p class="muted" id="feedEmpty">Nog niets gescand.</p></div>
+  </div>
+</div>
+<div id="toast" class="toast" hidden></div>
+{% endblock %}
+{% block scripts %}<script src="/static/scan.js?v={{ version }}"></script>{% endblock %}
