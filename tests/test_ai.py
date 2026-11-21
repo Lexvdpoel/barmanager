@@ -15,7 +15,7 @@ PROMPTS = []
 def ollama_handler(request: httpx.Request) -> httpx.Response:
     CALLS.append(request.url.path)
     if request.url.path == "/api/tags":
-        return httpx.Response(200, json={"models": [{"name": "qwen2.5:3b"}]})
+        return httpx.Response(200, json={"models": [{"name": "qwen3:4b"}]})
     if request.url.path == "/api/chat":
         body = json.loads(request.content)
         prompt = body["messages"][-1]["content"]
