@@ -102,14 +102,15 @@
       <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
       <label>Naam <input name="name" value="{{ p.name }}" maxlength="150" {{ 'autofocus' if not p.name and p.lookup_status != 'pending' }}></label>
       <div class="grid2">
-        <label>Merk <input name="brand" value="{{ p.brand }}" maxlength="100"></label>
-        <label>Hoofdcategorie
+        <label>Merk {% if "brand" in ai_fields %}<span class="ai-tag" title="Aangevuld door AI; controleer het even">AI</span>{% endif %} <input name="brand" value="{{ p.brand }}" maxlength="100"></label>
+        <label>Hoofdcategorie {% if "category" in ai_fields %}<span class="ai-tag" title="Aangevuld door AI; controleer het even">AI</span>{% endif %}
           <select name="category">
             {% for key, label, color in CATEGORIES %}<option value="{{ key }}" {{ 'selected' if key == p.category }}>{{ label }}</option>{% endfor %}
           </select>
         </label>
         <label>Inhoud (ml) <input name="volume_ml" type="number" min="1" value="{{ p.volume_ml or '' }}" placeholder="700"></label>
-        <label>Alcohol (%) <input name="abv" inputmode="decimal" value="{{ '%g'|format(p.abv) if p.abv is not none else '' }}" placeholder="40"></label>
+        <label>Alcohol (%) {% if "abv" in ai_fields %}<span class="ai-tag" title="Aangevuld door AI; controleer het even">AI</span>{% endif %} <input name="abv" inputmode="decimal" value="{{ '%g'|format(p.abv) if p.abv is not none else '' }}" placeholder="40"></label>
+        <label>Land van herkomst {% if "country" in ai_fields %}<span class="ai-tag" title="Aangevuld door AI; controleer het even">AI</span>{% endif %} <input name="country" value="{{ p.country }}" maxlength="60" placeholder="bijv. Schotland"></label>
       </div>
       <fieldset class="cat-extra">
         <legend>Valt ook onder <span class="muted small">(bijv. Jim Beam Peach: whisky én likeur)</span></legend>
@@ -118,7 +119,7 @@
           {{ 'checked' if key in cats[1:] }}> {{ label }}</label>
         {% endif %}{% endfor %}
       </fieldset>
-      <label>Omschrijving <textarea name="description" rows="3" maxlength="2000">{{ p.description }}</textarea></label>
+      <label>Omschrijving {% if "description" in ai_fields %}<span class="ai-tag" title="Aangevuld door AI; controleer het even">AI</span>{% endif %} <textarea name="description" rows="3" maxlength="2000">{{ p.description }}</textarea></label>
       <div class="row">
         <button>Opslaan</button>
         <span class="muted small">
@@ -127,10 +128,23 @@
         </span>
       </div>
     </form>
-    <form method="post" action="/producten/{{ p.id }}/opnieuw-opzoeken" class="right">
-      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
-      <button class="ghost small">Opnieuw opzoeken op internet</button>
-    </form>
+    <div class="row right-row">
+      {% if ai.enricher.enabled and p.name %}
+      <span class="muted small">
+        {% if ai.busy_with == p.id %}De AI is dit product nu aan het aanvullen…
+        {% elif p.ai_for != p.name and p.ai_attempts < 3 %}Staat in de wachtrij voor de AI.
+        {% endif %}
+      </span>
+      <form method="post" action="/producten/{{ p.id }}/ai">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
+        <button class="ghost small">Lege velden aanvullen met AI</button>
+      </form>
+      {% endif %}
+      <form method="post" action="/producten/{{ p.id }}/opnieuw-opzoeken">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
+        <button class="ghost small">Opnieuw opzoeken op internet</button>
+      </form>
+    </div>
 
     {% if can_delete %}
     <form method="post" action="/producten/{{ p.id }}/verwijderen" class="right"

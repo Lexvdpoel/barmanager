@@ -45,6 +45,10 @@ CREATE TABLE IF NOT EXISTS products(
     lookup_status TEXT NOT NULL DEFAULT 'pending',
     lookup_attempts INTEGER NOT NULL DEFAULT 0,
     next_lookup_at REAL,                         -- when to try the internet again
+    country TEXT NOT NULL DEFAULT '',
+    ai_for TEXT NOT NULL DEFAULT '',             -- name the AI last filled this product in for
+    ai_attempts INTEGER NOT NULL DEFAULT 0,
+    ai_fields TEXT NOT NULL DEFAULT '',          -- fields the AI filled, e.g. 'brand,description'
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL
 );
@@ -104,6 +108,12 @@ class Database:
             # Unknown products from before this version: look them up again soon.
             self._conn.execute("UPDATE products SET next_lookup_at = 0 "
                                "WHERE lookup_status = 'not_found' AND name = ''")
+        if "country" not in cols:
+            self._conn.execute("ALTER TABLE products ADD COLUMN country TEXT NOT NULL DEFAULT ''")
+        if "ai_for" not in cols:
+            self._conn.execute("ALTER TABLE products ADD COLUMN ai_for TEXT NOT NULL DEFAULT ''")
+            self._conn.execute("ALTER TABLE products ADD COLUMN ai_attempts INTEGER NOT NULL DEFAULT 0")
+            self._conn.execute("ALTER TABLE products ADD COLUMN ai_fields TEXT NOT NULL DEFAULT ''")
 
     def one(self, sql: str, *args):
         with self._lock:

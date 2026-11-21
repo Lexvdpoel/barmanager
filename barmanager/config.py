@@ -25,6 +25,10 @@ class Settings:
     opengtindb_id: str = ""          # free query id from opengtindb.org (optional)
     brave_api_key: str = ""          # optional: web search for unknown barcodes + photo search
     max_images: int = 3
+    # Optional local AI (Ollama) that fills in missing details, e.g. http://ollama:11434
+    ollama_url: str = ""
+    ollama_model: str = "qwen2.5:3b"
+    ollama_timeout: float = 600.0
     max_image_bytes: int = 8_000_000
     # Tests run lookups inline instead of in the background thread.
     lookup_inline: bool = False
@@ -45,4 +49,7 @@ class Settings:
             opengtindb_id=e.get("BM_OPENGTINDB_ID", "").strip(),
             brave_api_key=e.get("BM_BRAVE_API_KEY", "").strip(),
             max_images=int(e.get("BM_MAX_IMAGES", cls.max_images)),
+            ollama_url=e.get("BM_OLLAMA_URL", "").strip(),
+            ollama_model=e.get("BM_OLLAMA_MODEL", "").strip() or cls.ollama_model,
+            ollama_timeout=float(e.get("BM_OLLAMA_TIMEOUT", cls.ollama_timeout)),
         )

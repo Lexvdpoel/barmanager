@@ -15,8 +15,18 @@ services:
       - BM_ADMIN_PASSWORD=verander-mij
       # Optioneel: Brave Search API-sleutel voor webzoeken en foto's zoeken.
       # - BM_BRAVE_API_KEY=
+      # Optioneel: lokale AI die ontbrekende gegevens aanvult (zie de ollama-service hieronder).
+      # - BM_OLLAMA_URL=http://ollama:11434
     volumes:
       - ./appdata/barmanager:/config
     ports:
       - "8080:8080"
     restart: unless-stopped
+
+  # Optioneel: lokale AI (Qwen 2.5 3B) voor het aanvullen van merk, land, alcohol en omschrijving.
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: ollama
+  #   volumes:
+  #     - ./appdata/ollama:/root/.ollama
+  #   restart: unless-stopped

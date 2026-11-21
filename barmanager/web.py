@@ -452,7 +452,8 @@ def product_page(request: Request, pid: int, user=Depends(require_user), loc: in
                   cats=service.product_categories(p),
                   can_delete=service.can_delete_product(db, user, pid),
                   location=location, item=item, history=history,
-                  brave=bool(request.app.state.settings.brave_api_key))
+                  brave=bool(request.app.state.settings.brave_api_key),
+                  ai=request.app.state.ai, ai_fields=[f for f in (p["ai_fields"] or "").split(",") if f])
 
 
 def _product_url(pid: int, loc: str | int | None) -> str:
@@ -464,7 +465,7 @@ def _product_url(pid: int, loc: str | int | None) -> str:
 def save_product(request: Request, pid: int, user=Depends(require_user), csrf: str = Form(""),
                  loc: str = Form(""), name: str = Form(""), brand: str = Form(""),
                  category: str = Form("overig"), extra: list[str] = Form([]), volume_ml: str = Form(""),
-                 abv: str = Form(""), description: str = Form("")):
+                 abv: str = Form(""), description: str = Form(""), country: str = Form("")):
     check_csrf(request, csrf)
     p = get_product(request, pid)
     db = db_of(request)
@@ -473,22 +474,39 @@ def save_product(request: Request, pid: int, user=Depends(require_user), csrf: s
     changed = category != p["category"] or extra_s != (p["extra_categories"] or "")
     locked = 1 if (p["category_locked"] or changed) else 0
     abv_v = _float(abv)
+    abv_v = abv_v if abv_v is not None and 0 <= abv_v <= 100 else None
+    vol_v = _int(volume_ml, None, 1, 100000)
+    new = {"brand": brand.strip()[:100], "country": country.strip()[:60], "abv": abv_v,
+           "description": description.strip()[:2000], "category": category}
+    # A field the user changed is no longer "filled in by AI".
+    ai_fields = ",".join(f for f in (p["ai_fields"] or "").split(",") if f in new and new[f] == p[f])
     db.run("""UPDATE products SET name=?, brand=?, category=?, extra_categories=?, category_locked=?,
-              volume_ml=?, abv=?,
+              volume_ml=?, abv=?, country=?, ai_fields=?,
               description=?, lookup_status=CASE WHEN lookup_status='pending' THEN 'pending' ELSE 'manual' END,
               updated_at=? WHERE id=?""",
-           name.strip()[:150], brand.strip()[:100], category, extra_s, locked,
-           _int(volume_ml, None, 1, 100000), abv_v if abv_v is not None and 0 <= abv_v <= 100 else None,
-           description.strip()[:2000], time.time(), pid)
+           name.strip()[:150], new["brand"], category, extra_s, locked, vol_v, abv_v, new["country"], ai_fields,
+           new["description"], time.time(), pid)
     if not locked and category == categories.DEFAULT:
         service.reclassify(db, pid)
         if db.one("SELECT category FROM products WHERE id=?", pid)["category"] == categories.DEFAULT:
             request.app.state.worker.enqueue(pid, "classify")
     msg = "Product opgeslagen."
+    request.app.state.ai.wake()
     if name.strip() and not service.product_images(db, pid):
         request.app.state.worker.enqueue(pid, "images")
         msg += " Er wordt op de achtergrond naar foto's gezocht."
     return redirect(_product_url(pid, loc), msg=msg)
+
+
+@router.post("/producten/{pid}/ai")
+def ai_again(request: Request, pid: int, user=Depends(require_user), csrf: str = Form(""), loc: str = Form("")):
+    check_csrf(request, csrf)
+    get_product(request, pid)
+    if not request.app.state.ai.enricher.enabled:
+        return redirect(_product_url(pid, loc), err="Er is geen AI ingesteld (BM_OLLAMA_URL).")
+    db_of(request).run("UPDATE products SET ai_for='', ai_attempts=0 WHERE id=?", pid)
+    request.app.state.ai.wake()
+    return redirect(_product_url(pid, loc), msg="De AI vult lege velden aan; dat duurt ongeveer een minuut.")
 
 
 @router.post("/producten/{pid}/opnieuw-opzoeken")

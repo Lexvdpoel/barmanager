@@ -271,3 +271,8 @@ header nav { min-width: 0; }
 .prod-card .pick input { width: 20px; height: 20px; min-height: 0; accent-color: var(--bad); }
 .prod-card.picked { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 6%, var(--panel)); }
 @media (max-width: 560px) { .prod-card { grid-template-columns: auto 60px minmax(0, 1fr); } }
+
+/* AI-filled fields */
+.ai-tag { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .04em; line-height: 1;
+  padding: 2px 5px; border-radius: 4px; vertical-align: 1px; color: #fff; background: #7c5cd6; }
+.right-row { justify-content: flex-end; flex-wrap: wrap; gap: 8px; align-items: center; }

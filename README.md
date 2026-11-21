@@ -31,6 +31,29 @@ Wordt een barcode nergens gevonden, dan staat het product als "Onbekend" in de v
 naam in, dan wordt de categorie bepaald en wordt automatisch naar foto's gezocht. Je kunt ook zelf
 een foto maken of uploaden. Alle foto's worden opnieuw gecodeerd naar WebP en lokaal opgeslagen.
 
+## Aanvullen met lokale AI (optioneel)
+
+Met een [Ollama](https://ollama.com)-container ernaast (bijv. `qwen2.5:3b`, draait prima op een
+Raspberry Pi 5) vult BarManager op de achtergrond lege velden aan van elk product waarvan de naam
+bekend is: merk, land van herkomst, alcoholpercentage, een korte omschrijving en, als de
+categorie nog "Overig" is, de categorie. Daarbij krijgt het model de Wikipedia-tekst over het
+merk mee. Wat jij of een productdatabase invulde wordt nooit overschreven, en wat de AI invulde
+krijgt een paars **AI**-labeltje tot je het zelf aanpast.
+
+De AI verzint géén product bij een onbekende barcode: een taalmodel kent geen barcodes en zou
+een fles verzinnen. Vul bij een onbekende barcode de naam in; de rest volgt dan vanzelf.
+
+```yaml
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ./appdata/ollama:/root/.ollama
+    restart: unless-stopped
+```
+
+en bij barmanager `BM_OLLAMA_URL=http://ollama:11434`. Het model wordt de eerste keer zelf
+gedownload (±2 GB). Op een Pi 5 duurt één product ongeveer een minuut.
+
 ## Camera
 
 De camerascanner gebruikt de ingebouwde `BarcodeDetector` van de browser (Chrome/Android) en anders
@@ -64,6 +87,9 @@ Of gebruik `docker-compose.yml`. Bij de eerste start wordt beheerder `admin` aan
 | `BM_UPCITEMDB` | `true` | UPCitemdb gebruiken |
 | `BM_MAX_IMAGES` | `3` | Hoeveel foto's er automatisch per product worden opgehaald |
 | `BM_LOOKUP_TIMEOUT` | `8` | Time-out per opzoekverzoek (seconden) |
+| `BM_OLLAMA_URL` | leeg | Ollama-server voor AI-aanvulling, bijv. `http://ollama:11434` |
+| `BM_OLLAMA_MODEL` | `qwen2.5:3b` | Welk model Ollama gebruikt |
+| `BM_OLLAMA_TIMEOUT` | `600` | Maximale tijd per AI-antwoord (seconden) |
 | `BM_SESSION_DAYS` | `30` | Hoe lang je ingelogd blijft |
 | `BM_PORT` | `8080` | Poort in de container |
 | `PUID` / `PGID` | `99` / `100` | Gebruiker waaronder de app draait (eigenaar van `/config`) |

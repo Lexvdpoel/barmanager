@@ -15,6 +15,7 @@ from .config import Settings
 from .db import Database
 from .lookup import Lookup
 from .security import hash_password
+from .ai import AiWorker, Enricher
 from .service import LookupWorker
 
 log = logging.getLogger("barmanager")
@@ -33,7 +34,8 @@ def bootstrap_admin(db: Database, settings: Settings) -> None:
                     settings.admin_username, password)
 
 
-def create_app(settings: Settings | None = None, lookup: Lookup | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, lookup: Lookup | None = None,
+               enricher: Enricher | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     Path(settings.image_dir).mkdir(parents=True, exist_ok=True)
 
@@ -50,12 +52,17 @@ def create_app(settings: Settings | None = None, lookup: Lookup | None = None) -
         app.state.lookup = lookup or Lookup(settings)
         app.state.worker = LookupWorker(db, settings, app.state.lookup)
         app.state.worker.start()
+        app.state.ai = AiWorker(db, settings, enricher or Enricher(settings), app.state.lookup)
+        app.state.ai.start()
+        if app.state.ai.enricher.enabled:
+            log.info("AI-aanvulling via %s (%s).", settings.ollama_url, settings.ollama_model)
         if not settings.brave_api_key:
             log.info("Geen BM_BRAVE_API_KEY: opzoeken via Open Food Facts en UPCitemdb.")
         try:
             yield
         finally:
             app.state.worker.stop()
+            app.state.ai.stop()
             db.close()
 
     app = FastAPI(title="BarManager", version=__version__, lifespan=lifespan,
