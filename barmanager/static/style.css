@@ -276,3 +276,13 @@ header nav { min-width: 0; }
 .ai-tag { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .04em; line-height: 1;
   padding: 2px 5px; border-radius: 4px; vertical-align: 1px; color: #fff; background: #7c5cd6; }
 .right-row { justify-content: flex-end; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* scanner: paused after one bottle */
+.video-wrap.paused video { filter: brightness(.45) saturate(.6); }
+.video-wrap.paused .aim { display: none; }
+.next-scan { position: absolute; inset: auto 12px 12px 12px; display: flex; flex-direction: column;
+  align-items: center; gap: 4px; padding: 16px 12px; font-size: 1.1rem; font-weight: 700;
+  border-radius: 12px; background: #2e9d5b; color: #fff; border: 0; box-shadow: 0 4px 18px rgba(0,0,0,.35); }
+.next-scan[hidden] { display: none; }
+.next-scan .next-info { font-size: .85rem; font-weight: 500; opacity: .9; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

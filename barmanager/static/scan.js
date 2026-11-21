@@ -14,6 +14,9 @@
   let mode = "add";
   let running = false, stream = null, engine = null, loopTimer = null, torchOn = false;
   let lastCode = "", lastTime = 0, scans = 0, frames = 0, statusTimer = null;
+  // After one bottle the camera pauses until you tap "Volgende fles scannen": no double scans.
+  let paused = false;
+  const nextBtn = $("nextScan"), nextInfo = $("nextInfo");
   const FORMATS = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "itf"];
 
   // ---- mode ----------------------------------------------------------------
@@ -26,17 +29,40 @@
   }));
 
   // ---- feedback ---------------------------------------------------------------
+  // Phones only allow sound that was switched on by a tap. So the audio is created/resumed
+  // on every tap (camera button, "next bottle", anywhere on the page) and reused for the beep.
   let audio = null;
-  function beep(ok) {
+  function unlockAudio() {
     try {
       audio = audio || new (window.AudioContext || window.webkitAudioContext)();
-      const o = audio.createOscillator(), g = audio.createGain();
-      o.frequency.value = ok ? 1250 : 330;
-      g.gain.value = 0.08;
-      o.connect(g); g.connect(audio.destination);
-      o.start(); o.stop(audio.currentTime + (ok ? 0.09 : 0.25));
+      if (audio.state === "suspended") audio.resume();
+      // iOS: play one silent sample inside the tap to really unlock the output.
+      const b = audio.createBuffer(1, 1, 22050), s = audio.createBufferSource();
+      s.buffer = b; s.connect(audio.destination); s.start(0);
     } catch (e) { /* no audio */ }
-    if (navigator.vibrate) navigator.vibrate(ok ? 60 : [80, 60, 80]);
+  }
+  document.addEventListener("pointerdown", unlockAudio, { passive: true });
+  document.addEventListener("keydown", unlockAudio);
+  function tone(freq, start, dur) {
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = "square";
+    o.frequency.value = freq;
+    const t = audio.currentTime + start;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.35, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(audio.destination);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  function beep(ok) {
+    try {
+      if (audio) {
+        if (audio.state === "suspended") audio.resume();
+        if (ok) tone(1800, 0, 0.12);
+        else { tone(400, 0, 0.18); tone(300, 0.22, 0.25); }
+      }
+    } catch (e) { /* no audio */ }
+    if (navigator.vibrate) navigator.vibrate(ok ? 120 : [120, 80, 120]);
   }
   let toastTimer = null;
   function showToast(text) {
@@ -128,7 +154,7 @@
 
   // ---- submit a code --------------------------------------------------------------
   let busy = Promise.resolve();
-  function submit(code) {
+  function submit(code, done) {
     code = (code || "").trim();
     if (!code) return;
     const qty = Math.max(1, Math.min(1000, parseInt(qtyInput.value, 10) || 1));
@@ -136,6 +162,7 @@
       try {
         const p = await window.BM.api(`/api/locaties/${lid}/scan`, { barcode: code, mode, qty });
         beep(!p.warning);
+        if (done) done(p);
         addItem(p, false);
         if (p.warning) showToast(p.warning);
       } catch (err) {
@@ -151,16 +178,20 @@
   });
 
   function onDetected(code) {
-    // The same bottle stays in view for a while: only count it again once the code has
-    // been out of sight for 2 seconds (move the bottle away to scan the next one).
-    const now = Date.now();
-    const sameBottle = code === lastCode && now - lastTime < 2000;
-    lastCode = code; lastTime = now;
-    if (sameBottle) return;
-    videoWrap.classList.add("hit");
-    setTimeout(() => videoWrap.classList.remove("hit"), 400);
-    submit(code);
+    if (paused) return;
+    paused = true;
+    videoWrap.classList.add("hit", "paused");
+    setTimeout(() => videoWrap.classList.remove("hit"), 600);
+    nextInfo.textContent = code;
+    nextBtn.hidden = false;
+    submit(code, (p) => { nextInfo.textContent = p.display_name || code; });
   }
+  function resume() {
+    paused = false;
+    nextBtn.hidden = true;
+    videoWrap.classList.remove("paused");
+  }
+  nextBtn.addEventListener("click", resume);
 
   // ---- decoders ----------------------------------------------------------------------
   // Both decoders work on a canvas with the centre of the camera image, which we draw
@@ -312,6 +343,7 @@
       video.srcObject = stream;
       await video.play();
       running = true;
+      resume();
       camToggle.textContent = "Camera stoppen";
       try { localStorage.setItem("bm-camera", "on"); } catch (e) { /* private mode */ }
       listCameras();
@@ -326,7 +358,7 @@
       }, 1000);
       const tick = async () => {
         if (!running) return;
-        if (video.readyState >= 2 && video.videoWidth) {
+        if (!paused && video.readyState >= 2 && video.videoWidth) {
           try {
             const code = await engine.decode();
             frames += 1;
