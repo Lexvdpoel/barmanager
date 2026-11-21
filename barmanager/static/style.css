@@ -96,7 +96,7 @@ form.inline { display: inline; margin: 0; }
 .login button { width: 100%; }
 
 /* locations */
-.loc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.loc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 12px; }
 .loc-card { color: var(--text); display: block; transition: border-color .15s; }
 .loc-card:hover { text-decoration: none; border-color: var(--accent); }
 .loc-name { font-weight: 700; font-size: 17px; }
@@ -121,7 +121,7 @@ form.inline { display: inline; margin: 0; }
 .group-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .group-head .muted { font-weight: 400; font-size: 13px; }
 .dot { --c: var(--muted); width: 10px; height: 10px; border-radius: 50%; background: var(--c); display: inline-block; }
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 10px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 10px; }
 @media (max-width: 400px) { .cards { grid-template-columns: 1fr; } }
 .card { display: grid; grid-template-columns: 72px 1fr auto; gap: 12px; align-items: center;
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; box-shadow: var(--shadow); }
@@ -224,3 +224,41 @@ details.menu { position: relative; display: inline-block; text-align: left; }
 details.menu summary { list-style: none; }
 details.menu summary::-webkit-details-marker { display: none; }
 .menu-body { position: absolute; right: 0; top: 100%; z-index: 5; width: 260px; margin-top: 4px; }
+
+/* ---- scanner extras -------------------------------------------------------- */
+.cam-tools { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+.cam-tools .zoom { flex: 1; display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 14px; }
+.cam-tools .zoom input { margin: 0; min-height: 0; padding: 0; border: 0; background: none; accent-color: var(--accent); }
+#torch.on { background: #f3c74a; border-color: #f3c74a; color: #1d2026; }
+.cam-status { margin: 8px 0 0; min-height: 1em; font-variant-numeric: tabular-nums; }
+.cam-tip { margin: 4px 0 0; }
+.video-wrap.hit { outline: 4px solid #3fdc7f; outline-offset: -4px; }
+
+/* ---- mobile: nothing may be wider than the screen ------------------------------ */
+input, select, textarea { font-size: 16px; }          /* < 16px makes iOS zoom in on focus */
+select, input, textarea, button, .button { max-width: 100%; }
+header nav { min-width: 0; }
+.cam-controls select, .filters select, .filters input[type=search], .row-form > * { min-width: 0; }
+.card-title, .loc-name, h1 { overflow-wrap: anywhere; }
+.mono { overflow-wrap: anywhere; }
+.scan-layout > *, .product-layout > *, .card-body { min-width: 0; }
+@media (max-width: 560px) {
+  main { padding: 14px 12px 70px; }
+  header.top .inner { padding: 8px 12px; gap: 10px; }
+  header nav { gap: 12px; }
+  header form.inline button { padding: 4px 8px; }
+  h1 { font-size: 21px; }
+  .pagehead { align-items: stretch; }
+  .actions { width: 100%; }
+  .actions .button { flex: 1 1 auto; padding: 8px 10px; }
+  .filters select { flex: 1 1 40%; }
+  .filters button { flex: 1 1 100%; }
+  .cards { grid-template-columns: 1fr; }
+  .card { grid-template-columns: 60px minmax(0, 1fr) auto; gap: 10px; }
+  .card-img { width: 60px; height: 76px; }
+  .row-form > input { flex: 1 1 100%; }
+  .row-form > button { flex: 1 1 auto; }
+  .scan-item { grid-template-columns: 48px minmax(0, 1fr) auto; gap: 8px; }
+  .scan-item .card-img { width: 48px; height: 60px; }
+  .menu-body { width: min(260px, calc(100vw - 32px)); }
+}

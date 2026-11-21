@@ -7,12 +7,13 @@
   const lid = root.dataset.location;
   const $ = (id) => document.getElementById(id);
   const video = $("video"), videoWrap = $("videoWrap"), camOff = $("camOff"), camNote = $("camNote");
-  const camToggle = $("camToggle"), camSelect = $("camSelect");
+  const camToggle = $("camToggle"), camSelect = $("camSelect"), camStatus = $("camStatus");
+  const zoomWrap = $("zoomWrap"), zoomInput = $("zoom"), torchBtn = $("torch");
   const codeInput = $("code"), qtyInput = $("qty"), feed = $("feed"), toast = $("toast");
 
   let mode = "add";
-  let running = false, stream = null, detector = null, zxing = null, loopTimer = null;
-  let lastCode = "", lastTime = 0, scans = 0;
+  let running = false, stream = null, engine = null, loopTimer = null, torchOn = false;
+  let lastCode = "", lastTime = 0, scans = 0, frames = 0, statusTimer = null;
   const FORMATS = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "itf"];
 
   // ---- mode ----------------------------------------------------------------
@@ -22,7 +23,6 @@
       x.classList.toggle("on", x === b);
       x.setAttribute("aria-pressed", x === b ? "true" : "false");
     });
-    codeInput.focus();
   }));
 
   // ---- feedback ---------------------------------------------------------------
@@ -148,16 +148,103 @@
     e.preventDefault();
     submit(codeInput.value);
     codeInput.value = "";
-    codeInput.focus();
   });
 
   function onDetected(code) {
+    // The same bottle stays in view for a while: only count it again once the code has
+    // been out of sight for 2 seconds (move the bottle away to scan the next one).
     const now = Date.now();
-    if (code === lastCode && now - lastTime < 2500) return;   // same bottle still in view
+    const sameBottle = code === lastCode && now - lastTime < 2000;
     lastCode = code; lastTime = now;
+    if (sameBottle) return;
     videoWrap.classList.add("hit");
-    setTimeout(() => videoWrap.classList.remove("hit"), 300);
+    setTimeout(() => videoWrap.classList.remove("hit"), 400);
     submit(code);
+  }
+
+  // ---- decoders ----------------------------------------------------------------------
+  // Both decoders work on a canvas with the centre of the camera image, which we draw
+  // ourselves; this is far more reliable than handing the <video> to a library.
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+  async function nativeEngine() {
+    if (!("BarcodeDetector" in window)) return null;
+    try {
+      const supported = await window.BarcodeDetector.getSupportedFormats();
+      const formats = FORMATS.filter((f) => supported.includes(f));
+      if (!formats.includes("ean_13")) return null;
+      const det = new window.BarcodeDetector({ formats });
+      return {
+        name: "ingebouwde scanner",
+        // The native detector finds codes in any orientation, so give it the whole frame.
+        decode: async () => {
+          const r = await det.detect(video);
+          return r.length ? r[0].rawValue : null;
+        },
+      };
+    } catch (e) { return null; }
+  }
+
+  function loadZxing() {
+    if (window.ZXing) return Promise.resolve(window.ZXing);
+    return new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "/static/vendor/zxing.min.js?v=0.21.3";
+      s.onload = () => resolve(window.ZXing);
+      s.onerror = () => reject(new Error("Scanbibliotheek kon niet laden"));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function zxingEngine() {
+    const Z = await loadZxing();
+    const hints = new Map();
+    hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8,
+      Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E, Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.CODE_39,
+      Z.BarcodeFormat.ITF]);
+    hints.set(Z.DecodeHintType.TRY_HARDER, true);
+    const reader = new Z.MultiFormatReader();
+    reader.setHints(hints);
+    let turn = 0;
+    return {
+      name: "ZXing",
+      decode: async () => {
+        const vw = video.videoWidth, vh = video.videoHeight;
+        // ZXing only reads codes whose bars run (roughly) vertically in the image, and its own
+        // rotation does not work on canvas input. Barcodes on bottles are often upright, so
+        // cycle through: aiming box, whole frame, and both of those turned 90°.
+        turn = (turn + 1) % 4;
+        const rotate = turn >= 2;
+        const box = turn % 2 === 0;
+        // The aiming box (see .aim in the CSS); turned 90° it becomes a tall box.
+        const fw = box ? (rotate ? 0.4 : 0.76) : 1, fh = box ? (rotate ? 0.8 : 0.36) : 1;
+        const sw = vw * fw, sh = vh * fh;
+        const sx = (vw - sw) / 2, sy = (vh - sh) / 2;
+        const scale = Math.min(1, 1280 / Math.max(sw, sh));
+        const dw = Math.round(sw * scale), dh = Math.round(sh * scale);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        if (rotate) {
+          canvas.width = dh; canvas.height = dw;
+          ctx.translate(dh / 2, dw / 2);
+          ctx.rotate(Math.PI / 2);
+          ctx.drawImage(video, sx, sy, sw, sh, -dw / 2, -dh / 2, dw, dh);
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+        } else {
+          canvas.width = dw; canvas.height = dh;
+          ctx.drawImage(video, sx, sy, sw, sh, 0, 0, dw, dh);
+        }
+        try {
+          const lum = new Z.HTMLCanvasElementLuminanceSource(canvas);
+          const result = reader.decode(new Z.BinaryBitmap(new Z.HybridBinarizer(lum)));
+          return result.getText();
+        } catch (e) {
+          return null;   // NotFound / Checksum / Format: no code in this frame
+        } finally {
+          reader.reset();
+        }
+      },
+    };
   }
 
   // ---- camera ------------------------------------------------------------------------
@@ -166,27 +253,6 @@
   } else if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     camNote.textContent = "Deze browser geeft geen toegang tot de camera.";
     camToggle.disabled = true;
-  }
-
-  async function nativeDetector() {
-    if (!("BarcodeDetector" in window)) return null;
-    try {
-      const supported = await window.BarcodeDetector.getSupportedFormats();
-      const formats = FORMATS.filter((f) => supported.includes(f));
-      if (!formats.includes("ean_13")) return null;
-      return new window.BarcodeDetector({ formats });
-    } catch (e) { return null; }
-  }
-
-  function loadZxing() {
-    if (window.ZXing) return Promise.resolve(window.ZXing);
-    return new Promise((resolve, reject) => {
-      const s = document.createElement("script");
-      s.src = "/static/vendor/zxing.min.js";
-      s.onload = () => resolve(window.ZXing);
-      s.onerror = () => reject(new Error("Scanbibliotheek kon niet laden"));
-      document.head.appendChild(s);
-    });
   }
 
   async function listCameras() {
@@ -200,45 +266,76 @@
     } catch (e) { camSelect.hidden = true; }
   }
 
+  function setupTrack() {
+    const track = stream && stream.getVideoTracks()[0];
+    zoomWrap.hidden = true; torchBtn.hidden = true;
+    if (!track || !track.getCapabilities) return;
+    const caps = track.getCapabilities();
+    const adv = {};
+    if (caps.focusMode && caps.focusMode.includes("continuous")) adv.focusMode = "continuous";
+    if (Object.keys(adv).length) track.applyConstraints({ advanced: [adv] }).catch(() => {});
+    if (caps.zoom && caps.zoom.max > caps.zoom.min) {
+      zoomInput.min = caps.zoom.min; zoomInput.max = Math.min(caps.zoom.max, 8);
+      zoomInput.step = caps.zoom.step || 0.1;
+      // A little zoom lets you hold the phone further away, where the camera can focus.
+      const start = Math.min(Math.max(caps.zoom.min, 1.6), zoomInput.max);
+      zoomInput.value = start;
+      track.applyConstraints({ advanced: [{ zoom: start }] }).catch(() => {});
+      zoomWrap.hidden = false;
+    }
+    if (caps.torch) torchBtn.hidden = false;
+  }
+  zoomInput.addEventListener("input", () => {
+    const track = stream && stream.getVideoTracks()[0];
+    if (track) track.applyConstraints({ advanced: [{ zoom: parseFloat(zoomInput.value) }] }).catch(() => {});
+  });
+  torchBtn.addEventListener("click", () => {
+    const track = stream && stream.getVideoTracks()[0];
+    if (!track) return;
+    torchOn = !torchOn;
+    track.applyConstraints({ advanced: [{ torch: torchOn }] }).catch(() => {});
+    torchBtn.classList.toggle("on", torchOn);
+  });
+
   async function start(deviceId) {
     camToggle.disabled = true;
+    camNote.textContent = "";
     try {
+      const size = { width: { ideal: 1920 }, height: { ideal: 1080 } };
       const constraints = {
         audio: false,
-        video: deviceId ? { deviceId: { exact: deviceId } }
-          : { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: deviceId ? { deviceId: { exact: deviceId }, ...size } : { facingMode: { ideal: "environment" }, ...size },
       };
       stream = await navigator.mediaDevices.getUserMedia(constraints);
+      videoWrap.hidden = false; camOff.hidden = true;   // visible before play(), iOS needs that
+      video.setAttribute("playsinline", ""); video.muted = true;
       video.srcObject = stream;
       await video.play();
-      videoWrap.hidden = false; camOff.hidden = true;
       running = true;
       camToggle.textContent = "Camera stoppen";
       try { localStorage.setItem("bm-camera", "on"); } catch (e) { /* private mode */ }
       listCameras();
+      setupTrack();
 
-      detector = detector || await nativeDetector();
-      if (detector) {
-        const tick = async () => {
-          if (!running) return;
+      engine = engine || await nativeEngine() || await zxingEngine();
+      frames = 0;
+      clearInterval(statusTimer);
+      statusTimer = setInterval(() => {
+        camStatus.textContent = `${engine.name} · ${video.videoWidth}×${video.videoHeight} · ${frames} beelden/s`;
+        frames = 0;
+      }, 1000);
+      const tick = async () => {
+        if (!running) return;
+        if (video.readyState >= 2 && video.videoWidth) {
           try {
-            if (video.readyState >= 2) {
-              const codes = await detector.detect(video);
-              if (codes.length) onDetected(codes[0].rawValue);
-            }
+            const code = await engine.decode();
+            frames += 1;
+            if (code) onDetected(code);
           } catch (e) { /* frame not ready */ }
-          loopTimer = setTimeout(tick, 150);
-        };
-        tick();
-      } else {
-        const Z = await loadZxing();
-        const hints = new Map();
-        hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8,
-          Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E, Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.CODE_39, Z.BarcodeFormat.ITF]);
-        hints.set(Z.DecodeHintType.TRY_HARDER, true);
-        zxing = new Z.BrowserMultiFormatReader(hints, 200);
-        zxing.decodeFromStream(stream, video, (result) => { if (result) onDetected(result.getText()); });
-      }
+        }
+        loopTimer = setTimeout(tick, 60);
+      };
+      tick();
     } catch (err) {
       stop();
       camNote.textContent = err && err.name === "NotAllowedError"
@@ -252,10 +349,12 @@
   function stop(remember) {
     running = false;
     clearTimeout(loopTimer);
-    if (zxing) { try { zxing.reset(); } catch (e) { /* ignore */ } zxing = null; }
+    clearInterval(statusTimer);
+    camStatus.textContent = "";
     if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
     video.srcObject = null;
     videoWrap.hidden = true; camOff.hidden = false;
+    zoomWrap.hidden = true; torchBtn.hidden = true; torchOn = false;
     camToggle.textContent = "Camera starten";
     if (remember) { try { localStorage.setItem("bm-camera", "off"); } catch (e) { /* ignore */ } }
   }
@@ -264,10 +363,10 @@
   camSelect.addEventListener("change", () => { stop(); start(camSelect.value); });
   document.addEventListener("visibilitychange", () => { if (document.hidden && running) stop(); });
 
-  // Start the camera straight away when it was on last time (phones), otherwise
-  // focus the text field so a handheld scanner works immediately.
+  // Start the camera straight away when it was on last time (phones). The text field is
+  // not focused automatically on touch devices, so the keyboard does not pop up.
   let wasOn = false;
   try { wasOn = localStorage.getItem("bm-camera") === "on"; } catch (e) { /* ignore */ }
   if (wasOn && window.isSecureContext && navigator.mediaDevices) start();
-  else codeInput.focus();
+  else if (!window.matchMedia("(pointer: coarse)").matches) codeInput.focus();
 })();
