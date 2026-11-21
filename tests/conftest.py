@@ -69,6 +69,23 @@ def fake_handler(request: httpx.Request) -> httpx.Response:
                 "title": "Glenfarclas", "index": 1, "description": "Scotch whisky distillery",
                 "extract": "Glenfarclas is a Speyside distillery producing single malt Scotch whisky."}}}})
         return httpx.Response(200, json={"batchcomplete": True})
+    if url.startswith("http://searxng.test/search"):
+        q = request.url.params.get("q", "")
+        if request.url.params.get("categories") == "images":
+            return httpx.Response(200, json={"results": [
+                {"title": "Glenfarclas 12 Years bottle", "img_src": "https://images.example.com/gf.png"},
+                {"title": "Random ham", "img_src": "https://images.example.com/ham2.png"}]})
+        if q == "8001500009892":
+            return httpx.Response(200, json={"results": [
+                {"title": "Unrelated page", "url": "https://x.example/1", "content": "nothing here"},
+                {"title": "Limoncello di Sorrento 70cl - Shop", "url": "https://shop.example/p",
+                 "content": "EAN 8001500009892. Limoncello 30% vol."}]})
+        if "Glenfarclas" in q:
+            return httpx.Response(200, json={"results": [
+                {"title": "Glenfarclas 12 Year Old", "url": "https://w.example/gf",
+                 "content": "Glenfarclas 12 is a Speyside single malt from Scotland, sherry cask matured."},
+                {"title": "Weather in Speyside", "url": "https://w.example/w", "content": "Rain."}]})
+        return httpx.Response(200, json={"results": []})
     if url.startswith("https://images.example.com/"):
         return httpx.Response(200, content=png_bytes(), headers={"content-type": "image/png"})
     return httpx.Response(404)

@@ -6,6 +6,8 @@ Sources (all official APIs):
 - OpenGTINDB        (free, optional BM_OPENGTINDB_ID; German/Dutch market)
 - Brave Search API  (optional, BM_BRAVE_API_KEY): web search on the barcode when the
                     product databases do not know it, and image search on the product name.
+- SearXNG           (optional, self-hosted, BM_SEARXNG_URL): free general web search, used
+                    like Brave: barcode search, photo search, and background text for the AI.
 - Wikipedia         (free): not for barcodes (articles do not list them), but to find out what
                     kind of drink a name/brand is when the categoriser cannot tell.
 """
@@ -117,6 +119,14 @@ class Lookup:
     def brave_key(self) -> str:
         return getattr(self.settings, "brave_api_key", "") or ""
 
+    @property
+    def searxng(self) -> str:
+        return (getattr(self.settings, "searxng_url", "") or "").rstrip("/")
+
+    @property
+    def can_web_search(self) -> bool:
+        return bool(self.brave_key or self.searxng)
+
     # ---- main entry -------------------------------------------------------
     def lookup(self, barcode: str) -> LookupResult:
         res = LookupResult()
@@ -137,8 +147,8 @@ class Lookup:
                     for code in barcode_variants(barcode):
                         if safe(self._upcitemdb, c, code, res):
                             break
-            if not res.found and self.brave_key:
-                safe(self._brave_web, c, barcode, res)
+            if not res.found and self.can_web_search:
+                safe(self._web_barcode, c, barcode, res)
             if res.found and not res.image_urls:
                 res.add_images(self._image_search(c, image_query(res.name, res.brand)))
         if res.found:
@@ -155,6 +165,8 @@ class Lookup:
         urls: list[str] = []
         if self.brave_key:
             urls += self._safe(self._brave_images, c, query) or []
+        elif self.searxng:
+            urls += self._safe(self._searxng_images, c, query) or []
         if len(urls) < self.settings.max_images:
             urls += self._safe(self._off_search_images, c, query) or []
         if len(urls) < self.settings.max_images and self.settings.use_upcitemdb:
@@ -314,12 +326,44 @@ class Lookup:
     def _brave_headers(self) -> dict:
         return {"X-Subscription-Token": self.brave_key, "Accept": "application/json"}
 
-    def _brave_web(self, c: httpx.Client, barcode: str, res: LookupResult) -> bool:
-        r = c.get(BRAVE_WEB, params={"q": barcode, "count": 10}, headers=self._brave_headers())
+    # ---- general web search (Brave API or self-hosted SearXNG) -----------------------
+    def web_search(self, c: httpx.Client, query: str) -> list[dict]:
+        """[{title, url, text}] - Brave when a key is set, otherwise SearXNG."""
+        if self.brave_key:
+            r = c.get(BRAVE_WEB, params={"q": query, "count": 10}, headers=self._brave_headers())
+            r.raise_for_status()
+            results = (r.json().get("web") or {}).get("results") or []
+            return [{"title": _strip(x.get("title")), "url": x.get("url", ""),
+                     "text": _strip(x.get("description"))} for x in results]
+        r = c.get(self.searxng + "/search", params={"q": query, "format": "json", "categories": "general"},
+                  timeout=max(self.settings.lookup_timeout, 15))
         r.raise_for_status()
-        results = (r.json().get("web") or {}).get("results") or []
-        titles = [x.get("title", "") for x in results]
-        snippets = [re.sub(r"<[^>]+>", "", x.get("description", "")) for x in results]
+        return [{"title": _strip(x.get("title")), "url": x.get("url", ""), "text": _strip(x.get("content"))}
+                for x in (r.json().get("results") or [])[:10]]
+
+    def web_texts(self, name: str, brand: str = "", limit: int = 6) -> list[str]:
+        """Search-result snippets about this bottle, as background for the AI."""
+        query = image_query(re.sub(r"\d+([.,]\d+)?\s*(cl|ml|l|ltr|%)\b", " ", name or "", flags=re.I), brand)
+        if not self.can_web_search or not _tokens(query):
+            return []
+        with self.client() as c:
+            results = self._safe(self.web_search, c, query) or []
+        out = []
+        for x in results:
+            # Only results that are about this product (most words of the name in the title/snippet).
+            if x["text"] and name_matches(query, x["title"] + " " + x["text"], need=0.5):
+                out.append(f"{x['title']}: {x['text']}")
+            if len(out) >= limit:
+                break
+        return out
+
+    def _web_barcode(self, c: httpx.Client, barcode: str, res: LookupResult) -> bool:
+        variants = barcode_variants(barcode)
+        results = [x for x in self.web_search(c, barcode)
+                   # A search on a bare number returns lots of noise: the code must be on the page.
+                   if any(v in x["title"] + " " + x["text"] + " " + x["url"] for v in variants)]
+        titles = [x["title"] for x in results]
+        snippets = [x["text"] for x in results]
         name = ""
         for t in titles:
             cleaned = clean_title(t, barcode)
@@ -337,6 +381,19 @@ class Lookup:
         res.abv = res.abv or parse_abv(joined)
         return True
 
+    def _searxng_images(self, c: httpx.Client, query: str) -> list[str]:
+        r = c.get(self.searxng + "/search", params={"q": query, "format": "json", "categories": "images"},
+                  timeout=max(self.settings.lookup_timeout, 15))
+        r.raise_for_status()
+        out: list[str] = []
+        for x in r.json().get("results") or []:
+            url = x.get("img_src") or ""
+            if url.startswith("//"):
+                url = "https:" + url
+            if url and name_matches(query, x.get("title", ""), need=0.6):
+                out.append(url)
+        return out[:10]
+
     def _brave_images(self, c: httpx.Client, query: str) -> list[str]:
         r = c.get(BRAVE_IMAGES, params={"q": query, "count": 10, "safesearch": "strict"},
                   headers=self._brave_headers())
@@ -347,6 +404,10 @@ class Lookup:
             if url:
                 out.append(url)
         return out
+
+
+def _strip(text) -> str:
+    return html.unescape(re.sub(r"<[^>]+>", "", text or "")).strip()
 
 
 _STOP = {"de", "het", "een", "the", "and", "en", "of", "with", "met", "la", "le", "les", "di", "da"}

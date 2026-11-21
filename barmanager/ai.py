@@ -1,9 +1,14 @@
 """Optional local language model (Ollama, e.g. Qwen 2.5 3B) that fills in missing product details.
 
 What it does: for every bottle with a known name it adds what is still empty - brand, country,
-a short English description and, when the categoriser gave up ('Overig'), the category. Exact
-numbers such as the alcohol percentage are left alone: a 3B model gets those wrong too often. It never overwrites what a user or a product database filled in, and every
-field it fills is remembered so the product page can mark it as "AI".
+a short English description and, when the categoriser gave up ('Overig'), the category.
+
+Grounded: before asking, BarManager collects sources about the bottle (product database text,
+Wikipedia, web search results) and the model may only use facts from those sources. Without
+sources it only writes a generic description of the kind of drink - no names, places or years.
+Exact numbers such as the alcohol percentage are left alone. It never overwrites what a user or
+a product database filled in, and every field it fills is remembered so the product page can
+mark it as "AI".
 
 What it does not do: invent a product for an unknown barcode. A small model does not know
 barcodes; asked anyway it makes up a plausible bottle, which is worse than "unknown".
@@ -11,6 +16,7 @@ barcodes; asked anyway it makes up a plausible bottle, which is worse than "unkn
 
 import json
 import logging
+import re
 import threading
 import time
 
@@ -25,14 +31,20 @@ MAX_ATTEMPTS = 3
 FIELDS_LABEL = {"brand": "merk", "country": "land", "description": "omschrijving", "category": "categorie"}
 
 SYSTEM = (
-    "You help a bar keep its inventory. You get one bottle of drink and fill in missing details. "
-    "Only state facts you are sure of; leave a field empty when unsure. Never invent anything.\n"
+    "You help a bar keep its inventory. You get one bottle of drink and SOURCES found about it "
+    "(product databases, Wikipedia, web search results). Sources can be about other products; "
+    "ignore those. Use ONLY facts that the sources state about this bottle or its brand. "
+    "Do not use your own memory for facts. Never invent anything.\n"
     "- brand: the brand name exactly as it appears in the product name (e.g. 'Jim Beam'), nothing added.\n"
-    "- country: country of origin in English (e.g. 'Scotland', 'United States').\n"
+    "- country: the country the drink comes from, in English, as stated or clearly implied by the "
+    "sources (e.g. 'Orkney' or 'Speyside' means Scotland, 'Norwegian' means Norway); otherwise empty.\n"
     "- category: what kind of drink it is.\n"
-    "- description: ONE or TWO short sentences in English, max 200 characters: what kind of drink, "
-    "from where, main taste. No marketing, no repetition.\n"
-    "- sure: true only if you really know this product or brand."
+    "- description: ONE or TWO short sentences in English, max 200 characters. If the sources "
+    "describe this bottle: summarise only what they say (kind of drink, origin, main taste). If they "
+    "do not: describe only the kind of drink the name says it is, WITHOUT any names, places, years "
+    "or numbers. Always write English, also when the sources are in another language. "
+    "No marketing, no repetition, no remarks about the text itself.\n"
+    "- sure: true only if the sources clearly are about this product or its brand."
 )
 
 
@@ -94,8 +106,13 @@ class Enricher:
         self._model_ready = True
         return True
 
-    def ask(self, product, hints: list[str]) -> dict:
-        """Ask the model about one product. Returns the cleaned-up answer."""
+    @property
+    def thinking_model(self) -> bool:
+        m = self.model.lower()
+        return any(x in m for x in ("qwen3", "deepseek-r1", "phi4-mini-reasoning", "magistral", "gpt-oss"))
+
+    def ask(self, product, sources: dict[str, list[str]]) -> dict:
+        """Ask the model about one product, given {source name: [texts]}. Returns the cleaned-up answer."""
         cat = product["category"]
         facts = {
             "name": product["name"],
@@ -104,10 +121,18 @@ class Enricher:
             "abv_percent": product["abv"] if product["abv"] is not None else "unknown",
             "category": cat if cat != categories.DEFAULT else "unknown",
         }
-        prompt = "Bottle:\n" + json.dumps(facts, ensure_ascii=False, indent=1)
-        hints = [h.strip() for h in hints if h and h.strip()]
-        if hints:
-            prompt += "\n\nWikipedia about it:\n" + "\n".join(hints)[:1200]
+        prompt = "Bottle:\n" + json.dumps(facts, ensure_ascii=False, indent=1) + "\n\nSOURCES:"
+        budget, any_source = 2400, False
+        for label, texts in sources.items():
+            texts = [t.strip() for t in texts if t and t.strip()]
+            if not texts or budget <= 0:
+                continue
+            block = "\n".join(f"- {t[:400]}" for t in texts)[:budget]
+            prompt += f"\n[{label}]\n{block}"
+            budget -= len(block)
+            any_source = True
+        if not any_source:
+            prompt += "\n(none found)"
         prompt += ("\n\nCategories: " + ", ".join(f"{k} ({CATEGORY_EN.get(k, k)})" for k in categories.KEYS)
                    + ". 'also' is only for a flavoured liqueur made from a spirit (e.g. whisky liqueur: "
                    "category likeur, also [whisky]); otherwise leave it empty.")
@@ -116,6 +141,8 @@ class Enricher:
             "keep_alive": "30m",
             "options": {"temperature": 0.1, "num_ctx": 4096, "num_predict": 300, "repeat_penalty": 1.15,
                         "num_thread": 3},
+            # Reasoning models think first; with structured output we want only the answer.
+            **({"think": False} if self.thinking_model else {}),
             "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
         }
         with self.client() as c:
@@ -131,11 +158,21 @@ def clean_answer(a: dict) -> dict:
         v = v.strip() if isinstance(v, str) else ""
         return "" if v.lower() in ("", "onbekend", "unknown", "n/a", "-", "geen", "none") else v[:n]
 
+    def tidy(desc: str) -> str:
+        # Small models sometimes add remarks like "(180 characters)" or a stray clock time.
+        desc = re.sub(r"\s*\(\s*\d+\s*(characters|chars|tekens)\s*\)", "", desc, flags=re.I)
+        parts = [x for x in re.split(r"(?<=[.!?])\s+", desc) if x and not re.search(r"\b\d{1,2}:\d{2}\b", x)]
+        out = " ".join(parts).strip()
+        if out and out[-1] not in ".!?":
+            cut = max(out.rfind(". "), out.rfind("! "), out.rfind("? "))
+            out = out[:cut + 1] if cut >= 20 else out      # drop a sentence the length limit cut off
+        return out
+
     cat = a.get("category") if categories.valid(a.get("category", "")) else categories.DEFAULT
     also = [c for c in (a.get("also") or []) if isinstance(c, str) and categories.valid(c)
             and c not in (cat, categories.DEFAULT)] if cat == "likeur" else []
     return {"brand": text("brand", 100), "country": text("country", 60), "category": cat,
-            "also": list(dict.fromkeys(also))[:2], "description": text("description", 300),
+            "also": list(dict.fromkeys(also))[:2], "description": tidy(text("description", 300)),
             "sure": bool(a.get("sure"))}
 
 
@@ -145,7 +182,8 @@ def apply_answer(db: Database, product_id: int, ans: dict) -> list[str]:
     if not p:
         return []
     filled, sets, args = [], [], []
-    # Facts only when the model says it knows the product; the category it may always guess.
+    # Facts only when the sources were about this product; a generic description and the
+    # category it may always give.
     name_words = set(categories.normalize(p["name"]).split())
     if ans["sure"]:
         # The brand must be taken from the name itself, not made up.
@@ -153,8 +191,8 @@ def apply_answer(db: Database, product_id: int, ans: dict) -> list[str]:
             filled.append("brand"); sets.append("brand=?"); args.append(ans["brand"])
         if not p["country"] and ans["country"]:
             filled.append("country"); sets.append("country=?"); args.append(ans["country"])
-        if not p["description"] and ans["description"]:
-            filled.append("description"); sets.append("description=?"); args.append(ans["description"])
+    if not p["description"] and ans["description"]:
+        filled.append("description"); sets.append("description=?"); args.append(ans["description"])
     if not p["category_locked"] and p["category"] == categories.DEFAULT and ans["category"] != categories.DEFAULT:
         filled.append("category"); sets.append("category=?, extra_categories=?")
         args += [ans["category"], ",".join(ans["also"])]
@@ -224,15 +262,25 @@ class AiWorker:
             self._wake.wait(60)
             self._wake.clear()
 
+    def sources(self, p) -> dict[str, list[str]]:
+        """Everything we can find about this bottle, for the model to work from."""
+        out: dict[str, list[str]] = {}
+        ai_fields = (p["ai_fields"] or "").split(",")
+        if p["description"] and "description" not in ai_fields:
+            out["Product database"] = [p["description"]]
+        out["Wikipedia"] = self.lookup.wikipedia_texts(p["name"], p["brand"], langs=("en",))
+        out["Web search"] = self.lookup.web_texts(p["name"], p["brand"])
+        return {k: v for k, v in out.items() if v}
+
     def process(self, product_id: int) -> list[str]:
         p = self.db.one("SELECT * FROM products WHERE id=?", product_id)
         if not p or not p["name"]:
             return []
         self.busy_with = product_id
         try:
-            hints = self.lookup.wikipedia_texts(p["name"], p["brand"], langs=("en",))
+            sources = self.sources(p)
             started = time.time()
-            ans = self.enricher.ask(p, hints)
+            ans = self.enricher.ask(p, sources)
         except (httpx.ReadTimeout, json.JSONDecodeError, ValueError) as exc:
             # Model answered badly or too slowly for this product: count it, move on.
             self.db.run("UPDATE products SET ai_attempts = ai_attempts + 1 WHERE id=?", product_id)
@@ -241,6 +289,6 @@ class AiWorker:
         finally:
             self.busy_with = None
         filled = apply_answer(self.db, product_id, ans)
-        log.info("AI %s (%.0fs): %s", p["name"], time.time() - started,
-                 ", ".join(FIELDS_LABEL[f] for f in filled) or "niets aangevuld")
+        log.info("AI %s (%.0fs, bronnen: %s): %s", p["name"], time.time() - started,
+                 ", ".join(sources) or "geen", ", ".join(FIELDS_LABEL[f] for f in filled) or "niets aangevuld")
         return filled

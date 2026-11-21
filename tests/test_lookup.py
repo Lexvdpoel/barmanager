@@ -73,3 +73,14 @@ def test_wikipedia_hint(settings):
     texts = FakeLookup(settings).wikipedia_texts("Glenfarclas 12 Years", "")
     assert any("Scotch whisky" in t for t in texts)
     assert FakeLookup(settings).wikipedia_texts("Iets onbekends", "") == []
+
+
+def test_searxng_barcode_and_texts(settings):
+    settings.searxng_url = "http://searxng.test"
+    lk = FakeLookup(settings)
+    res = lk.lookup("8001500009892")
+    assert res.name == "Limoncello di Sorrento 70cl" and res.guessed and res.abv == 30
+    texts = lk.web_texts("Glenfarclas 12 Years", "")
+    assert len(texts) == 1 and "Speyside" in texts[0]
+    urls = lk.image_search("Glenfarclas 12 Years")
+    assert "https://images.example.com/gf.png" in urls and not any("ham2" in u for u in urls)

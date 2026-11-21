@@ -9,6 +9,7 @@ from barmanager.db import Database
 from .conftest import FakeLookup
 
 CALLS = []
+PROMPTS = []
 
 
 def ollama_handler(request: httpx.Request) -> httpx.Response:
@@ -18,6 +19,7 @@ def ollama_handler(request: httpx.Request) -> httpx.Response:
     if request.url.path == "/api/chat":
         body = json.loads(request.content)
         prompt = body["messages"][-1]["content"]
+        PROMPTS.append(prompt)
         if "Apenshot" in prompt:
             ans = {"brand": "", "country": "", "category": "likeur", "also": [], "description": "",
                    "sure": False}
@@ -96,3 +98,21 @@ def test_brand_must_come_from_name(settings):
     filled = apply_answer(db, a, clean_answer({"brand": "Highland Park Distillery", "country": "Schotland",
                                                "category": "whisky", "description": "x", "sure": True}))
     assert "brand" not in filled and "country" in filled
+
+
+def test_sources_are_given_to_the_model(settings):
+    db, worker, a, _ = setup(settings)
+    settings.searxng_url = "http://searxng.test"
+    PROMPTS.clear()
+    worker.process(a)
+    prompt = PROMPTS[-1]
+    assert "[Wikipedia]" in prompt and "Speyside distillery" in prompt
+    assert "[Web search]" in prompt and "sherry cask" in prompt and "Rain." not in prompt
+
+
+def test_description_tidy():
+    d = clean_answer({"description": "Fruit-flavored whiskey liqueur. Produced since 1:00 PM. (247 characters)",
+                      "category": "likeur"})["description"]
+    assert d == "Fruit-flavored whiskey liqueur."
+    d = clean_answer({"description": "Single malt from Orkney with honey notes. Aged in sherry casks with an"})
+    assert d["description"] == "Single malt from Orkney with honey notes."

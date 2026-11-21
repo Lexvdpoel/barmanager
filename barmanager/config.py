@@ -24,10 +24,11 @@ class Settings:
     use_upcitemdb: bool = True
     opengtindb_id: str = ""          # free query id from opengtindb.org (optional)
     brave_api_key: str = ""          # optional: web search for unknown barcodes + photo search
+    searxng_url: str = ""            # optional self-hosted SearXNG (JSON enabled), e.g. http://searxng:8080
     max_images: int = 3
     # Optional local AI (Ollama) that fills in missing details, e.g. http://ollama:11434
     ollama_url: str = ""
-    ollama_model: str = "qwen2.5:3b"
+    ollama_model: str = "qwen3:4b"
     ollama_timeout: float = 600.0
     max_image_bytes: int = 8_000_000
     # Tests run lookups inline instead of in the background thread.
@@ -48,6 +49,7 @@ class Settings:
             use_upcitemdb=_bool("BM_UPCITEMDB", cls.use_upcitemdb),
             opengtindb_id=e.get("BM_OPENGTINDB_ID", "").strip(),
             brave_api_key=e.get("BM_BRAVE_API_KEY", "").strip(),
+            searxng_url=e.get("BM_SEARXNG_URL", "").strip(),
             max_images=int(e.get("BM_MAX_IMAGES", cls.max_images)),
             ollama_url=e.get("BM_OLLAMA_URL", "").strip(),
             ollama_model=e.get("BM_OLLAMA_MODEL", "").strip() or cls.ollama_model,

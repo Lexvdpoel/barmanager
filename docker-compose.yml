@@ -17,6 +17,8 @@ services:
       # - BM_BRAVE_API_KEY=
       # Optioneel: lokale AI die ontbrekende gegevens aanvult (zie de ollama-service hieronder).
       # - BM_OLLAMA_URL=http://ollama:11434
+      # Optioneel: eigen SearXNG voor gratis webzoeken (zet 'json' aan in search.formats).
+      # - BM_SEARXNG_URL=http://searxng:8080
     volumes:
       - ./appdata/barmanager:/config
     ports:

@@ -26,6 +26,7 @@ telefoon/browser ──https──► reverse proxy ──► BarManager (FastAP
 | [Open Food Facts](https://world.openfoodfacts.org) | nee | De meeste dranken uit de Europese winkel: naam, merk, categorie, inhoud, alcohol, foto |
 | [UPCitemdb](https://www.upcitemdb.com) (trial) | nee | Aanvulling, vooral internationale producten; max. ±100 opzoekingen per dag |
 | [Brave Search API](https://brave.com/search/api/) | ja (`BM_BRAVE_API_KEY`, gratis tier) | Zoekt de barcode op het web als de databases hem niet kennen, en zoekt foto's op productnaam |
+| [SearXNG](https://docs.searxng.org) (zelf gehost) | nee (`BM_SEARXNG_URL`) | Gratis alternatief voor Brave: webzoeken op barcode, foto's, en bronnen voor de AI |
 
 Wordt een barcode nergens gevonden, dan staat het product als "Onbekend" in de voorraad. Vul je de
 naam in, dan wordt de categorie bepaald en wordt automatisch naar foto's gezocht. Je kunt ook zelf
@@ -33,12 +34,15 @@ een foto maken of uploaden. Alle foto's worden opnieuw gecodeerd naar WebP en lo
 
 ## Aanvullen met lokale AI (optioneel)
 
-Met een [Ollama](https://ollama.com)-container ernaast (bijv. `qwen2.5:3b`, draait prima op een
+Met een [Ollama](https://ollama.com)-container ernaast (bijv. `qwen3:4b`, draait prima op een
 Raspberry Pi 5) vult BarManager op de achtergrond lege velden aan van elk product waarvan de naam
-bekend is: merk, land van herkomst, alcoholpercentage, een korte omschrijving en, als de
-categorie nog "Overig" is, de categorie. Daarbij krijgt het model de Wikipedia-tekst over het
-merk mee. Wat jij of een productdatabase invulde wordt nooit overschreven, en wat de AI invulde
-krijgt een paars **AI**-labeltje tot je het zelf aanpast.
+bekend is: merk, land van herkomst, een korte (Engelse) omschrijving en, als de categorie nog
+"Overig" is, de categorie. Eerst verzamelt BarManager bronnen over de fles (productdatabase,
+Engelse Wikipedia en - met SearXNG of Brave - zoekresultaten op internet); het model mag alleen
+feiten uit die bronnen gebruiken. Zonder bronnen schrijft het alleen een algemene omschrijving
+van het soort drank, zonder namen, plaatsen of jaartallen. Wat jij of een productdatabase
+invulde wordt nooit overschreven, en wat de AI invulde krijgt een paars **AI**-labeltje tot je
+het zelf aanpast.
 
 De AI verzint géén product bij een onbekende barcode: een taalmodel kent geen barcodes en zou
 een fles verzinnen. Vul bij een onbekende barcode de naam in; de rest volgt dan vanzelf.
@@ -87,8 +91,9 @@ Of gebruik `docker-compose.yml`. Bij de eerste start wordt beheerder `admin` aan
 | `BM_UPCITEMDB` | `true` | UPCitemdb gebruiken |
 | `BM_MAX_IMAGES` | `3` | Hoeveel foto's er automatisch per product worden opgehaald |
 | `BM_LOOKUP_TIMEOUT` | `8` | Time-out per opzoekverzoek (seconden) |
+| `BM_SEARXNG_URL` | leeg | Eigen SearXNG (met `json` in `search.formats`), bijv. `http://searxng:8080` |
 | `BM_OLLAMA_URL` | leeg | Ollama-server voor AI-aanvulling, bijv. `http://ollama:11434` |
-| `BM_OLLAMA_MODEL` | `qwen2.5:3b` | Welk model Ollama gebruikt |
+| `BM_OLLAMA_MODEL` | `qwen3:4b` | Welk model Ollama gebruikt |
 | `BM_OLLAMA_TIMEOUT` | `600` | Maximale tijd per AI-antwoord (seconden) |
 | `BM_SESSION_DAYS` | `30` | Hoe lang je ingelogd blijft |
 | `BM_PORT` | `8080` | Poort in de container |
