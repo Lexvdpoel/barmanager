@@ -20,7 +20,10 @@ def ollama_handler(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
         prompt = body["messages"][-1]["content"]
         PROMPTS.append(prompt)
-        if "Apenshot" in prompt:
+        if body["messages"][0]["content"].startswith("You identify"):
+            ans = {"name": "Limoncello di Sorrento", "brand": "Limoncello", "sure": True} \
+                if "8001500009892" in prompt else {"name": "Made Up Whisky", "brand": "Fake", "sure": True}
+        elif "Apenshot" in prompt:
             ans = {"brand": "", "country": "", "category": "likeur", "also": [], "description": "",
                    "sure": False}
         else:
@@ -116,3 +119,27 @@ def test_description_tidy():
     assert d == "Fruit-flavored whiskey liqueur."
     d = clean_answer({"description": "Single malt from Orkney with honey notes. Aged in sherry casks with an"})
     assert d["description"] == "Single malt from Orkney with honey notes."
+
+
+def test_identify_unknown_barcode_from_search(settings):
+    db, worker, _, _ = setup(settings)
+    settings.searxng_url = "http://searxng.test"
+    now = time.time()
+    pid = db.run("INSERT INTO products(barcode, name, created_at, updated_at, lookup_status) "
+                 "VALUES ('8001500009892', 'Limoncello di Sorrento 70cl', ?, ?, 'guess')", now, now)
+    worker.process(pid)
+    p = db.one("SELECT * FROM products WHERE id=?", pid)
+    assert p["name"] == "Limoncello di Sorrento" and "name" in p["ai_fields"]
+
+
+def test_identify_rejects_name_not_in_results(settings):
+    db, worker, _, _ = setup(settings)
+    settings.searxng_url = "http://searxng.test"
+    now = time.time()
+    # Search results for this code exist in the fake only for 8001500009892; make some that do not match.
+    pid = db.run("INSERT INTO products(barcode, name, created_at, updated_at, lookup_status) "
+                 "VALUES ('8001500009892', 'Iets', ?, ?, 'guess')", now, now)
+    worker.enricher.identify = lambda code, res: {"name": "Made Up Whisky", "brand": "Fake", "sure": True}
+    worker.process(pid)
+    p = db.one("SELECT * FROM products WHERE id=?", pid)
+    assert p["name"] == "Iets" and "name" in p["ai_fields"]

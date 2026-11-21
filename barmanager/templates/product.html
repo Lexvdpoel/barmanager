@@ -100,7 +100,7 @@
     <form method="post" action="/producten/{{ p.id }}" class="panel stack">
       <h2 class="flush">Productgegevens</h2>
       <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
-      <label>Naam <input name="name" value="{{ p.name }}" maxlength="150" {{ 'autofocus' if not p.name and p.lookup_status != 'pending' }}></label>
+      <label>Naam {% if "name" in ai_fields and p.lookup_status == 'guess' %}<span class="ai-tag" title="Naam door AI uit zoekresultaten gehaald; controleer het even">AI</span>{% endif %} <input name="name" value="{{ p.name }}" maxlength="150" {{ 'autofocus' if not p.name and p.lookup_status != 'pending' }}></label>
       <div class="grid2">
         <label>Merk {% if "brand" in ai_fields %}<span class="ai-tag" title="Aangevuld door AI; controleer het even">AI</span>{% endif %} <input name="brand" value="{{ p.brand }}" maxlength="100"></label>
         <label>Hoofdcategorie {% if "category" in ai_fields %}<span class="ai-tag" title="Aangevuld door AI; controleer het even">AI</span>{% endif %}

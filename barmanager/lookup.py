@@ -357,11 +357,21 @@ class Lookup:
                 break
         return out
 
-    def _web_barcode(self, c: httpx.Client, barcode: str, res: LookupResult) -> bool:
+    def _barcode_results(self, c: httpx.Client, barcode: str) -> list[dict]:
         variants = barcode_variants(barcode)
-        results = [x for x in self.web_search(c, barcode)
-                   # A search on a bare number returns lots of noise: the code must be on the page.
-                   if any(v in x["title"] + " " + x["text"] + " " + x["url"] for v in variants)]
+        # A search on a bare number returns lots of noise: the code must be on the page.
+        return [x for x in self.web_search(c, barcode)
+                if any(v in x["title"] + " " + x["text"] + " " + x["url"] for v in variants)]
+
+    def barcode_results(self, barcode: str) -> list[dict]:
+        """Web search results that mention this barcode (for the AI to read)."""
+        if not self.can_web_search:
+            return []
+        with self.client() as c:
+            return self._safe(self._barcode_results, c, barcode) or []
+
+    def _web_barcode(self, c: httpx.Client, barcode: str, res: LookupResult) -> bool:
+        results = self._barcode_results(c, barcode)
         titles = [x["title"] for x in results]
         snippets = [x["text"] for x in results]
         name = ""

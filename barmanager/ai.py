@@ -24,6 +24,7 @@ import httpx
 
 from . import categories
 from .db import Database
+from .lookup import name_matches
 
 log = logging.getLogger("barmanager.ai")
 
@@ -106,6 +107,27 @@ class Enricher:
         self._model_ready = True
         return True
 
+    def _chat(self, system: str, prompt: str, schema: dict, num_predict: int = 300) -> dict:
+        body = {
+            "model": self.model, "stream": False, "format": schema, "keep_alive": "30m",
+            "options": {"temperature": 0.1, "num_ctx": 4096, "num_predict": num_predict, "repeat_penalty": 1.15,
+                        "num_thread": 3},
+            **({"think": False} if self.thinking_model else {}),
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+        }
+        with self.client() as c:
+            r = c.post("/api/chat", json=body)
+            r.raise_for_status()
+            return json.loads((r.json().get("message") or {}).get("content") or "{}")
+
+    def identify(self, barcode: str, results: list[dict]) -> dict:
+        """Clean product name + brand from search results that mention the barcode."""
+        lines = "\n".join(f"- {x['title']}: {x['text'][:300]}" for x in results[:8])
+        a = self._chat(IDENTIFY_SYSTEM, f"Barcode: {barcode}\n\nSearch results:\n{lines}", _identify_schema(), 120)
+        name = a.get("name") if isinstance(a.get("name"), str) else ""
+        brand = a.get("brand") if isinstance(a.get("brand"), str) else ""
+        return {"name": name.strip()[:150], "brand": brand.strip()[:100], "sure": bool(a.get("sure"))}
+
     @property
     def thinking_model(self) -> bool:
         m = self.model.lower()
@@ -150,6 +172,23 @@ class Enricher:
             r.raise_for_status()
             content = (r.json().get("message") or {}).get("content") or "{}"
         return clean_answer(json.loads(content))
+
+
+IDENTIFY_SYSTEM = (
+    "You identify a bottle of drink from web search results for its barcode. The results mention the "
+    "barcode, but can be shop pages, lists or noise. Use ONLY what the results say. Never invent.\n"
+    "- name: the product name as a shop would write it, in its original language, with brand and type "
+    "but without bottle size, price or shop name (e.g. 'Canadian Club Classic 12 Year Old').\n"
+    "- brand: the brand name.\n"
+    "- sure: true only if the results clearly agree on what product this barcode is."
+)
+
+
+def _identify_schema() -> dict:
+    return {"type": "object",
+            "properties": {"name": {"type": "string", "maxLength": 90}, "brand": {"type": "string", "maxLength": 40},
+                           "sure": {"type": "boolean"}},
+            "required": ["name", "brand", "sure"]}
 
 
 def clean_answer(a: dict) -> dict:
@@ -272,10 +311,38 @@ class AiWorker:
         out["Web search"] = self.lookup.web_texts(p["name"], p["brand"])
         return {k: v for k, v in out.items() if v}
 
+    def identify(self, p) -> bool:
+        """Barcode only found by a web search: let the model read the results and name it properly."""
+        results = self.lookup.barcode_results(p["barcode"])
+        marked = ",".join(dict.fromkeys([f for f in (p["ai_fields"] or "").split(",") if f] + ["name"]))
+        if not results:
+            self.db.run("UPDATE products SET ai_fields=? WHERE id=?", marked, p["id"])
+            return False
+        ans = self.enricher.identify(p["barcode"], results)
+        seen = " ".join(x["title"] + " " + x["text"] for x in results)
+        # Only accept a name that is really in the search results, not one the model knows or made up.
+        ok = ans["sure"] and ans["name"] and name_matches(ans["name"], seen, need=0.75)
+        if ok:
+            self.db.run("UPDATE products SET name=?, brand = CASE WHEN brand='' THEN ? ELSE brand END, ai_fields=?, "
+                        "updated_at=? WHERE id=? AND lookup_status='guess'",
+                        ans["name"], ans["brand"] if name_matches(ans["brand"], seen, need=0.99) else "",
+                        marked, time.time(), p["id"])
+            log.info("AI: barcode %s is '%s' (was '%s')", p["barcode"], ans["name"], p["name"])
+        else:
+            self.db.run("UPDATE products SET ai_fields=? WHERE id=?", marked, p["id"])
+        return bool(ok)
+
     def process(self, product_id: int) -> list[str]:
         p = self.db.one("SELECT * FROM products WHERE id=?", product_id)
         if not p or not p["name"]:
             return []
+        if p["lookup_status"] == "guess" and "name" not in (p["ai_fields"] or "").split(","):
+            self.busy_with = product_id
+            try:
+                if self.identify(p):
+                    p = self.db.one("SELECT * FROM products WHERE id=?", product_id)
+            except (httpx.ReadTimeout, json.JSONDecodeError, ValueError) as exc:
+                log.info("AI kon barcode %s niet benoemen: %s", p["barcode"], exc)
         self.busy_with = product_id
         try:
             sources = self.sources(p)
