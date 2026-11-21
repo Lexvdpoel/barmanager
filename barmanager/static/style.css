@@ -262,3 +262,12 @@ header nav { min-width: 0; }
   .scan-item .card-img { width: 48px; height: 60px; }
   .menu-body { width: min(260px, calc(100vw - 32px)); }
 }
+
+/* ---- product catalogue ---------------------------------------------------------- */
+.bulkbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 4px 0 10px;
+  position: sticky; top: 49px; z-index: 4; background: var(--bg); padding: 6px 0; }
+.prod-card { grid-template-columns: auto 72px minmax(0, 1fr); }
+.prod-card .pick { display: flex; align-items: center; padding: 6px 2px; cursor: pointer; }
+.prod-card .pick input { width: 20px; height: 20px; min-height: 0; accent-color: var(--bad); }
+.prod-card.picked { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 6%, var(--panel)); }
+@media (max-width: 560px) { .prod-card { grid-template-columns: auto 60px minmax(0, 1fr); } }

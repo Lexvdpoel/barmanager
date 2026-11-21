@@ -33,6 +33,8 @@ OFF_PRODUCTS = {
 
 def fake_handler(request: httpx.Request) -> httpx.Response:
     url = str(request.url)
+    if "/api/v2/product/3333333333333" in url:
+        raise httpx.ConnectTimeout("timeout", request=request)
     m = re.search(r"/api/v2/product/(\w+)\.json", url)
     if m:
         p = OFF_PRODUCTS.get(m.group(1))
@@ -48,8 +50,25 @@ def fake_handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"code": "OK", "items": []})
     if "upcitemdb.com/prod/trial/search" in url:
         return httpx.Response(200, json={"items": [{"images": ["https://images.example.com/search.png"]}]})
-    if "/cgi/search.pl" in url:
-        return httpx.Response(200, json={"products": []})
+    if "search.openfoodfacts.org/search" in url:
+        return httpx.Response(200, json={"hits": [
+            {"product_name": "Honey Roast Ham", "image_front_url": "https://images.example.com/ham.png"},
+            {"product_name": "Bacardi Carta Blanca", "brands": ["Bacardi"],
+             "image_front_url": "https://images.example.com/bacardi.png"}]})
+    if "opengtindb.org" in url:
+        if request.url.params.get("ean") == "4306188410409":
+            body = "error=0\n---\nname=\ndetailname=Kirschlikör 0,7L\nvendor=Testmarke\nmaincat=Getränke\n---\n"
+            return httpx.Response(200, content=body.encode("latin-1"))
+        return httpx.Response(200, content=b"error=1\n---\n")
+    if "upcitemdb.com" in url and request.url.params.get("upc") == "3333333333333":
+        return httpx.Response(503)
+    if "wikipedia.org" in url:
+        q = request.url.params.get("gsrsearch", "")
+        if "Glenfarclas" in q:
+            return httpx.Response(200, json={"query": {"pages": {"1": {
+                "title": "Glenfarclas", "index": 1, "description": "Scotch whisky distillery",
+                "extract": "Glenfarclas is a Speyside distillery producing single malt Scotch whisky."}}}})
+        return httpx.Response(200, json={"batchcomplete": True})
     if url.startswith("https://images.example.com/"):
         return httpx.Response(200, content=png_bytes(), headers={"content-type": "image/png"})
     return httpx.Response(404)

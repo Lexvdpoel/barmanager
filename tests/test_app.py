@@ -160,3 +160,77 @@ def test_two_categories(admin):
     keys = [x["key"] for x in c.get(f"/api/producten/{pid}").json()["categories"]]
     assert keys == ["whisky", "likeur", "additief"]
     assert "Alle <span>1</span>" in page
+
+
+def test_transient_failure_is_retried(admin, client):
+    c, csrf = admin
+    lid = make_location(c, csrf)
+    pid = scan(c, csrf, lid, "3333333333333").json()["id"]
+    db = client.app.state.db
+    p = db.one("SELECT * FROM products WHERE id=?", pid)
+    assert p["lookup_status"] == "pending" and p["next_lookup_at"] and p["lookup_attempts"] == 1
+    # After all retries it becomes 'not_found', with a daily re-check.
+    db.run("UPDATE products SET lookup_attempts=4 WHERE id=?", pid)
+    client.app.state.worker.process(pid)
+    p = db.one("SELECT * FROM products WHERE id=?", pid)
+    assert p["lookup_status"] == "not_found" and p["next_lookup_at"] > p["updated_at"] + 80000
+    db.run("UPDATE products SET next_lookup_at=0 WHERE id=?", pid)
+    assert client.app.state.worker.enqueue_due() == 1
+
+
+def test_likorette_category():
+    from barmanager.categories import classify
+    assert classify(texts=["Apenshot - Likorette - 500ML"]) == "likeur"
+
+
+def test_wikipedia_helps_categorise(admin):
+    c, csrf = admin
+    lid = make_location(c, csrf)
+    pid = scan(c, csrf, lid, "1111111111116").json()["id"]
+    c.post(f"/producten/{pid}", data={"csrf": csrf, "name": "Glenfarclas 12 Years", "category": "overig"})
+    keys = [x["key"] for x in c.get(f"/api/producten/{pid}").json()["categories"]]
+    assert keys[0] == "whisky"
+
+
+def test_delete_products(admin, settings):
+    c, csrf = admin
+    lid = make_location(c, csrf)
+    jw = scan(c, csrf, lid, "5000267014203").json()["id"]
+    a = scan(c, csrf, lid, "1111111111116").json()["id"]
+    b = scan(c, csrf, lid, "2222222222222").json()["id"]
+    page = c.get("/producten").text
+    assert "Johnnie Walker Red Label" in page and "Onbekend product" in page
+    assert "Johnnie" in c.get("/producten?merk=Johnnie+Walker").text
+    assert "Johnnie" not in c.get("/producten?staat=onbekend").text
+
+    photo = Path(settings.image_dir) / Path(c.get(f"/api/producten/{jw}").json()["image"]).name
+    assert photo.exists()
+    r = c.post(f"/producten/{jw}/verwijderen", data={"csrf": csrf, "loc": str(lid)}, follow_redirects=False)
+    assert r.headers["location"].startswith(f"/locaties/{lid}")
+    assert c.get(f"/api/producten/{jw}").status_code == 404
+    assert not photo.exists()
+    assert "Johnnie" not in c.get(f"/locaties/{lid}").text
+
+    r = c.post("/producten-verwijderen", data={"csrf": csrf, "ids": [str(a), str(b)]}, follow_redirects=False)
+    assert "2+product" in r.headers["location"]
+    assert "Onbekend product" not in c.get("/producten").text
+
+
+def test_delete_needs_access_to_all_locations(admin):
+    c, csrf = admin
+    lid = make_location(c, csrf, "Van admin")
+    pid = scan(c, csrf, lid, "5000267014203").json()["id"]
+    c.post("/gebruikers", data={"csrf": csrf, "username": "piet", "password": "wachtwoord1"})
+    c.cookies.clear()
+    csrf2 = login(c, "piet", "wachtwoord1")
+    lid2 = make_location(c, csrf2, "Van piet")
+    scan(c, csrf2, lid2, "5000267014203")
+    own = scan(c, csrf2, lid2, "1111111111116").json()["id"]
+    r = c.post(f"/producten/{pid}/verwijderen", data={"csrf": csrf2}, follow_redirects=False)
+    assert "err=" in r.headers["location"]
+    assert c.get(f"/api/producten/{pid}").status_code == 200
+    # Admin's location is not visible in piet's catalogue, his own unknown product is deletable.
+    page = c.get("/producten").text
+    assert "Van admin" not in page
+    r = c.post(f"/producten/{own}/verwijderen", data={"csrf": csrf2}, follow_redirects=False)
+    assert "msg=" in r.headers["location"]

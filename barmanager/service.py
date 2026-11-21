@@ -81,12 +81,18 @@ def apply_lookup(db: Database, product_id: int, res: LookupResult) -> None:
     p = db.one("SELECT * FROM products WHERE id=?", product_id)
     if not p:
         return
+    now = time.time()
+    attempts = p["lookup_attempts"] + 1
     if res.found:
-        status = "guess" if res.guessed else "found"
+        status, next_at = ("guess" if res.guessed else "found"), None
+    elif res.transient and attempts <= len(RETRY_DELAYS):
+        # A source was down or too slow: not "unknown" yet, try again soon.
+        status, next_at = "pending", now + RETRY_DELAYS[attempts - 1]
     else:
-        status = "not_found"
-    if p["lookup_status"] == "manual":
-        status = "manual"
+        # Really unknown: the databases grow every day, so look again tomorrow (for a month).
+        status, next_at = "not_found", (now + 86400 if attempts < 30 else None)
+    if p["lookup_status"] == "manual" or (not res.found and p["name"]):
+        status, next_at = ("manual" if p["lookup_status"] == "manual" else p["lookup_status"]), None
     category, extra = p["category"], p["extra_categories"]
     if not p["category_locked"] and category == categories.DEFAULT:
         cats = categories.classify_all(res.tags, [res.name, *res.texts], res.brand, res.web_texts)
@@ -97,10 +103,53 @@ def apply_lookup(db: Database, product_id: int, res: LookupResult) -> None:
                 volume_ml = COALESCE(volume_ml, ?),
                 abv = COALESCE(abv, ?),
                 description = CASE WHEN description='' THEN ? ELSE description END,
-                category = ?, extra_categories = ?, source = ?, lookup_status = ?, updated_at = ?
+                category = ?, extra_categories = ?, source = CASE WHEN ? = '' THEN source ELSE ? END,
+                lookup_status = ?, lookup_attempts = ?, next_lookup_at = ?, updated_at = ?
               WHERE id = ?""",
            res.name, res.brand, res.volume_ml, res.abv, res.description, category, extra,
-           ", ".join(res.sources), status, time.time(), product_id)
+           ", ".join(res.sources), ", ".join(res.sources), status, attempts, next_at, now, product_id)
+
+
+RETRY_DELAYS = [120, 600, 3600, 6 * 3600]
+
+
+def accessible_location_ids(db: Database, user) -> set[int] | None:
+    """Locations the user may see; None means all (admin)."""
+    if user["is_admin"]:
+        return None
+    rows = db.all("SELECT id FROM locations WHERE owner_id=? "
+                  "UNION SELECT location_id FROM location_members WHERE user_id=?", user["id"], user["id"])
+    return {r["id"] for r in rows}
+
+
+def can_delete_product(db: Database, user, product_id: int) -> bool:
+    """Admins always; others only if the product is in no location they cannot access."""
+    allowed = accessible_location_ids(db, user)
+    if allowed is None:
+        return True
+    used = {r["location_id"] for r in db.all("SELECT location_id FROM inventory WHERE product_id=?", product_id)}
+    return used <= allowed
+
+
+def delete_product(db: Database, settings, product_id: int) -> bool:
+    """Remove a product everywhere: all locations, history and its photos."""
+    photos = product_images(db, product_id)
+    with db.tx():
+        if not db.one("SELECT 1 FROM products WHERE id=?", product_id):
+            return False
+        db.run("DELETE FROM products WHERE id=?", product_id)   # cascades to inventory, movements, images
+    for ph in photos:
+        images.remove(ph["filename"], settings.image_dir)
+    return True
+
+
+def reclassify_all(db: Database) -> int:
+    """Re-run the categoriser for named products still in 'Overig' (after classifier updates)."""
+    rows = db.all("SELECT id FROM products WHERE category = ? AND category_locked = 0 AND name != ''",
+                  categories.DEFAULT)
+    for r in rows:
+        reclassify(db, r["id"])
+    return len(rows)
 
 
 def reclassify(db: Database, product_id: int) -> None:
@@ -171,14 +220,26 @@ class LookupWorker:
         self._q: queue.Queue = queue.Queue()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self._queued: set = set()
+        self._last_due_check = 0.0
 
     def start(self) -> None:
         if self.settings.lookup_inline:
             return
         self._thread = threading.Thread(target=self._run, name="lookup-worker", daemon=True)
         self._thread.start()
-        for row in self.db.all("SELECT id FROM products WHERE lookup_status='pending'"):
+        for row in self.db.all("SELECT id FROM products WHERE lookup_status='pending' "
+                               "AND (next_lookup_at IS NULL OR next_lookup_at <= ?)", time.time()):
             self.enqueue(row["id"])
+
+    def enqueue_due(self) -> int:
+        """Queue products whose retry time has come (temporary failures, daily re-check)."""
+        rows = self.db.all("SELECT id FROM products WHERE next_lookup_at IS NOT NULL AND next_lookup_at <= ? "
+                           "AND lookup_status IN ('pending', 'not_found') ORDER BY next_lookup_at LIMIT 50",
+                           time.time())
+        for r in rows:
+            self.enqueue(r["id"])
+        return len(rows)
 
     def stop(self) -> None:
         self._stop.set()
@@ -188,15 +249,23 @@ class LookupWorker:
     def enqueue(self, product_id: int, job: str = "lookup") -> None:
         if self.settings.lookup_inline:
             self.process(product_id, job)
-        else:
+        elif (product_id, job) not in self._queued:
+            self._queued.add((product_id, job))
             self._q.put((product_id, job))
 
     def _run(self) -> None:
         while not self._stop.is_set():
+            if time.time() - self._last_due_check > 60:
+                self._last_due_check = time.time()
+                try:
+                    self.enqueue_due()
+                except Exception:  # noqa: BLE001
+                    log.exception("geplande opzoekingen ophalen mislukt")
             try:
                 product_id, job = self._q.get(timeout=1)
             except queue.Empty:
                 continue
+            self._queued.discard((product_id, job))
             try:
                 self.process(product_id, job)
             except Exception:  # noqa: BLE001
@@ -211,10 +280,29 @@ class LookupWorker:
         if job == "lookup":
             res = self.lookup.lookup(p["barcode"])
             apply_lookup(self.db, product_id, res)
-            log.info("barcode %s: %s (%s)", p["barcode"], res.name or "niet gevonden",
+            log.info("barcode %s: %s (%s)", p["barcode"],
+                     res.name or ("bron onbereikbaar, later opnieuw" if res.transient else "niet gevonden"),
                      ", ".join(res.sources) or "-")
             if res.image_urls:
                 download_images(self.db, self.settings, self.lookup, product_id, res.image_urls)
+            self.wiki_classify(product_id)
         elif job == "images":
             urls = self.lookup.image_search(image_query(p["name"], p["brand"]))
             download_images(self.db, self.settings, self.lookup, product_id, urls)
+        elif job == "classify":
+            self.wiki_classify(product_id)
+
+    def wiki_classify(self, product_id: int) -> None:
+        """Name known but category still 'Overig': ask Wikipedia what kind of drink it is."""
+        p = self.db.one("SELECT * FROM products WHERE id=?", product_id)
+        if not p or p["category_locked"] or p["category"] != categories.DEFAULT or not p["name"]:
+            return
+        texts = self.lookup.wikipedia_texts(p["name"], p["brand"])
+        if not texts:
+            return
+        cats = categories.classify_all(texts=[p["name"], p["description"]], brand=p["brand"], web_texts=texts)
+        if cats[0] != categories.DEFAULT:
+            self.db.run("UPDATE products SET category=?, extra_categories=?, "
+                        "source = CASE WHEN source='' THEN 'Wikipedia' ELSE source || ', Wikipedia' END "
+                        "WHERE id=? AND category_locked=0", cats[0], ",".join(cats[1:]), product_id)
+            log.info("product %s via Wikipedia ingedeeld als %s", product_id, cats[0])

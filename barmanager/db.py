@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS products(
     source TEXT NOT NULL DEFAULT '',
     -- pending | found | guess | not_found | manual
     lookup_status TEXT NOT NULL DEFAULT 'pending',
+    lookup_attempts INTEGER NOT NULL DEFAULT 0,
+    next_lookup_at REAL,                         -- when to try the internet again
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL
 );
@@ -96,6 +98,12 @@ class Database:
         cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(products)")}
         if "extra_categories" not in cols:
             self._conn.execute("ALTER TABLE products ADD COLUMN extra_categories TEXT NOT NULL DEFAULT ''")
+        if "next_lookup_at" not in cols:
+            self._conn.execute("ALTER TABLE products ADD COLUMN lookup_attempts INTEGER NOT NULL DEFAULT 0")
+            self._conn.execute("ALTER TABLE products ADD COLUMN next_lookup_at REAL")
+            # Unknown products from before this version: look them up again soon.
+            self._conn.execute("UPDATE products SET next_lookup_at = 0 "
+                               "WHERE lookup_status = 'not_found' AND name = ''")
 
     def one(self, sql: str, *args):
         with self._lock:

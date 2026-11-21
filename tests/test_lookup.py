@@ -1,4 +1,4 @@
-from barmanager.lookup import barcode_variants, clean_title, parse_abv, parse_volume
+from barmanager.lookup import barcode_variants, clean_title, name_matches, parse_abv, parse_volume
 from barmanager.service import normalize_barcode
 
 from .conftest import FakeLookup
@@ -43,3 +43,33 @@ def test_upcitemdb_lookup(settings):
 
 def test_unknown(settings):
     assert not FakeLookup(settings).lookup("1111111111116").found
+
+
+def test_name_matches():
+    assert name_matches("Jim Beam Peach", "Jim Beam Peach Bourbon")
+    assert not name_matches("Jim Beam Peach", "Jim Beam Original")
+    assert not name_matches("Tullamore Honey 70cl", "Tullamore D.E.W")
+
+
+def test_opengtindb(settings):
+    settings.opengtindb_id = "123"
+    res = FakeLookup(settings).lookup("4306188410409")
+    assert res.name == "Kirschlikör 0,7L" and res.brand == "Testmarke"
+    assert res.volume_ml == 700 and "OpenGTINDB" in res.sources
+
+
+def test_transient_failure(settings):
+    res = FakeLookup(settings).lookup("3333333333333")
+    assert not res.found and res.transient
+    assert not FakeLookup(settings).lookup("1111111111116").transient
+
+
+def test_image_search_filters_wrong_products(settings):
+    urls = FakeLookup(settings).image_search("Bacardi Carta Blanca")
+    assert any("bacardi" in u for u in urls) and not any("ham" in u for u in urls)
+
+
+def test_wikipedia_hint(settings):
+    texts = FakeLookup(settings).wikipedia_texts("Glenfarclas 12 Years", "")
+    assert any("Scotch whisky" in t for t in texts)
+    assert FakeLookup(settings).wikipedia_texts("Iets onbekends", "") == []

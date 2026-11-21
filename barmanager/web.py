@@ -347,6 +347,94 @@ def delete_location(request: Request, lid: int, user=Depends(require_user), csrf
 
 
 # ---- products -------------------------------------------------------------------------------------
+@router.get("/producten", response_class=HTMLResponse)
+def products_page(request: Request, user=Depends(require_user), q: str = "", cat: str = "", merk: str = "",
+                  staat: str = ""):
+    db = db_of(request)
+    allowed = service.accessible_location_ids(db, user)
+    rows = db.all("""
+        SELECT p.*, (SELECT filename FROM product_images pi WHERE pi.product_id = p.id
+                     ORDER BY position, id LIMIT 1) AS image,
+               (SELECT GROUP_CONCAT(location_id) FROM inventory WHERE product_id = p.id) AS loc_ids,
+               (SELECT COALESCE(SUM(quantity), 0) FROM inventory WHERE product_id = p.id) AS total
+        FROM products p ORDER BY p.name = '', p.name COLLATE NOCASE, p.barcode""")
+    names = {r["id"]: r["name"] for r in db.all("SELECT id, name FROM locations")}
+    items, brands, counts = [], {}, {"_all": 0}
+    terms = categories.normalize(q).split()
+    for r in rows:
+        d = dict(r)
+        locs = [int(x) for x in (d["loc_ids"] or "").split(",") if x]
+        # Non-admins see products from their own locations, plus products that are in no location.
+        if allowed is not None and locs and not (set(locs) & allowed):
+            continue
+        d["locs"] = [(lid, names.get(lid, "?")) for lid in locs if allowed is None or lid in allowed]
+        d["cats"] = service.product_categories(r)
+        d["deletable"] = allowed is None or set(locs) <= allowed
+        if terms:
+            hay = categories.normalize(" ".join([d["name"], d["brand"], d["barcode"],
+                                                 *[categories.label(c) for c in d["cats"]]]))
+            if not all(t in hay for t in terms):
+                continue
+        if staat == "onbekend" and d["name"]:
+            continue
+        if staat == "los" and locs:
+            continue
+        if merk and d["brand"] != merk:
+            continue
+        for c in d["cats"]:
+            counts[c] = counts.get(c, 0) + 1
+        counts["_all"] += 1
+        if d["brand"]:
+            brands[d["brand"]] = brands.get(d["brand"], 0) + 1
+        if cat and cat not in d["cats"]:
+            continue
+        items.append(d)
+
+    def url_with(**kw):
+        params = {"q": q, "cat": cat, "merk": merk, "staat": staat}
+        params.update(kw)
+        params = {k: v for k, v in params.items() if v}
+        return "/producten" + ("?" + urlencode(params) if params else "")
+
+    return render(request, "products.html", items=items, counts=counts, q=q, cat=cat, merk=merk, staat=staat,
+                  brands=sorted(brands.items(), key=lambda b: b[0].lower()), url_with=url_with)
+
+
+@router.post("/producten-verwijderen")
+def delete_products(request: Request, user=Depends(require_user), csrf: str = Form(""),
+                    ids: list[int] = Form([]), back: str = Form("")):
+    check_csrf(request, csrf)
+    db = db_of(request)
+    done = skipped = 0
+    for pid in ids[:500]:
+        if service.can_delete_product(db, user, pid) and service.delete_product(db, request.app.state.settings, pid):
+            done += 1
+        else:
+            skipped += 1
+    back = safe_back(back, "/producten")
+    if not done:
+        return redirect(back, err="Niets verwijderd." if not skipped else
+                        "Deze producten staan ook in locaties van anderen; alleen een beheerder kan ze verwijderen.")
+    msg = f"{done} product(en) verwijderd."
+    if skipped:
+        msg += f" {skipped} overgeslagen (staan ook in locaties van anderen)."
+    return redirect(back, msg=msg)
+
+
+@router.post("/producten/{pid}/verwijderen")
+def delete_product(request: Request, pid: int, user=Depends(require_user), csrf: str = Form(""),
+                   loc: str = Form("")):
+    check_csrf(request, csrf)
+    p = get_product(request, pid)
+    db = db_of(request)
+    if not service.can_delete_product(db, user, pid):
+        return redirect(_product_url(pid, loc), err="Dit product staat ook in locaties van anderen; "
+                                                     "alleen een beheerder kan het verwijderen.")
+    service.delete_product(db, request.app.state.settings, pid)
+    back = f"/locaties/{_int(loc)}" if _int(loc) else "/producten"
+    return redirect(back, msg=f"'{p['name'] or p['barcode']}' verwijderd.")
+
+
 @router.get("/producten/{pid}", response_class=HTMLResponse)
 def product_page(request: Request, pid: int, user=Depends(require_user), loc: int | None = None):
     p = get_product(request, pid)
@@ -362,6 +450,7 @@ def product_page(request: Request, pid: int, user=Depends(require_user), loc: in
                          loc, pid)
     return render(request, "product.html", p=p, photos=service.product_images(db, pid),
                   cats=service.product_categories(p),
+                  can_delete=service.can_delete_product(db, user, pid),
                   location=location, item=item, history=history,
                   brave=bool(request.app.state.settings.brave_api_key))
 
@@ -393,6 +482,8 @@ def save_product(request: Request, pid: int, user=Depends(require_user), csrf: s
            description.strip()[:2000], time.time(), pid)
     if not locked and category == categories.DEFAULT:
         service.reclassify(db, pid)
+        if db.one("SELECT category FROM products WHERE id=?", pid)["category"] == categories.DEFAULT:
+            request.app.state.worker.enqueue(pid, "classify")
     msg = "Product opgeslagen."
     if name.strip() and not service.product_images(db, pid):
         request.app.state.worker.enqueue(pid, "images")

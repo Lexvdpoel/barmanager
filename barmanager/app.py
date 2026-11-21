@@ -41,6 +41,10 @@ def create_app(settings: Settings | None = None, lookup: Lookup | None = None) -
     async def lifespan(app: FastAPI):
         db = Database(settings.db_path)
         bootstrap_admin(db, settings)
+        from .service import reclassify_all
+        n = reclassify_all(db)
+        if n:
+            log.info("%d product(en) in 'Overig' opnieuw ingedeeld.", n)
         app.state.db = db
         app.state.settings = settings
         app.state.lookup = lookup or Lookup(settings)

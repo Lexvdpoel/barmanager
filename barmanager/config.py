@@ -22,6 +22,7 @@ class Settings:
     # Internet lookups for unknown barcodes.
     lookup_timeout: float = 8.0
     use_upcitemdb: bool = True
+    opengtindb_id: str = ""          # free query id from opengtindb.org (optional)
     brave_api_key: str = ""          # optional: web search for unknown barcodes + photo search
     max_images: int = 3
     max_image_bytes: int = 8_000_000
@@ -41,6 +42,7 @@ class Settings:
             session_days=float(e.get("BM_SESSION_DAYS", cls.session_days)),
             lookup_timeout=float(e.get("BM_LOOKUP_TIMEOUT", cls.lookup_timeout)),
             use_upcitemdb=_bool("BM_UPCITEMDB", cls.use_upcitemdb),
+            opengtindb_id=e.get("BM_OPENGTINDB_ID", "").strip(),
             brave_api_key=e.get("BM_BRAVE_API_KEY", "").strip(),
             max_images=int(e.get("BM_MAX_IMAGES", cls.max_images)),
         )

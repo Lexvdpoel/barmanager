@@ -3,8 +3,11 @@
 Sources (all official APIs):
 - Open Food Facts   (free, no key; covers most drinks sold in Europe)
 - UPCitemdb trial   (free, no key, ~100 lookups/day)
+- OpenGTINDB        (free, optional BM_OPENGTINDB_ID; German/Dutch market)
 - Brave Search API  (optional, BM_BRAVE_API_KEY): web search on the barcode when the
                     product databases do not know it, and image search on the product name.
+- Wikipedia         (free): not for barcodes (articles do not list them), but to find out what
+                    kind of drink a name/brand is when the categoriser cannot tell.
 """
 
 import html
@@ -20,12 +23,14 @@ log = logging.getLogger("barmanager.lookup")
 
 USER_AGENT = f"BarManager/{__version__} (self-hosted bar inventory)"
 OFF_URL = "https://world.openfoodfacts.org/api/v2/product/{code}.json"
-OFF_SEARCH = "https://world.openfoodfacts.org/cgi/search.pl"
+OFF_SEARCH = "https://search.openfoodfacts.org/search"
+OPENGTINDB = "https://opengtindb.org/"
 OFF_FIELDS = ("product_name,product_name_nl,product_name_en,generic_name,generic_name_nl,brands,"
               "categories_tags,categories,quantity,nutriments,image_front_url,image_url,"
               "selected_images")
 UPC_LOOKUP = "https://api.upcitemdb.com/prod/trial/lookup"
 UPC_SEARCH = "https://api.upcitemdb.com/prod/trial/search"
+WIKIPEDIA = "https://{lang}.wikipedia.org/w/api.php"
 BRAVE_WEB = "https://api.search.brave.com/res/v1/web/search"
 BRAVE_IMAGES = "https://api.search.brave.com/res/v1/images/search"
 
@@ -43,6 +48,7 @@ class LookupResult:
     image_urls: list[str] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
     guessed: bool = False                               # name comes from a web search
+    transient: bool = False                             # a source failed (timeout, 5xx): try again later
 
     @property
     def found(self) -> bool:
@@ -115,18 +121,28 @@ class Lookup:
     def lookup(self, barcode: str) -> LookupResult:
         res = LookupResult()
         with self.client() as c:
+            def safe(fn, *args):
+                out = self._safe(fn, *args)
+                if out is None:
+                    res.transient = True
+                return out
+
             for code in barcode_variants(barcode):
-                if self._safe(self._off, c, code, res):
+                if safe(self._off, c, code, res):
                     break
+            if not res.found and getattr(self.settings, "opengtindb_id", ""):
+                safe(self._opengtindb, c, barcode, res)
             if not res.found or not res.image_urls:
                 if self.settings.use_upcitemdb:
                     for code in barcode_variants(barcode):
-                        if self._safe(self._upcitemdb, c, code, res):
+                        if safe(self._upcitemdb, c, code, res):
                             break
             if not res.found and self.brave_key:
-                self._safe(self._brave_web, c, barcode, res)
+                safe(self._brave_web, c, barcode, res)
             if res.found and not res.image_urls:
                 res.add_images(self._image_search(c, image_query(res.name, res.brand)))
+        if res.found:
+            res.transient = False
         return res
 
     def image_search(self, query: str) -> list[str]:
@@ -151,11 +167,39 @@ class Lookup:
 
     @staticmethod
     def _safe(fn, *args):
+        """Run one source; None means the source itself failed (network, 5xx, bad data)."""
         try:
             return fn(*args)
         except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError) as exc:
             log.info("%s mislukt: %s", fn.__name__.lstrip("_"), exc)
             return None
+
+    # ---- Wikipedia ------------------------------------------------------------------
+    def wikipedia_texts(self, name: str, brand: str = "") -> list[str]:
+        """Short description + intro of the Wikipedia article about this drink or its brand."""
+        query = image_query(re.sub(r"\d+([.,]\d+)?\s*(cl|ml|l|ltr|%)\b", " ", name or "", flags=re.I), brand)
+        if not _tokens(query):
+            return []
+        with self.client() as c:
+            for lang in ("nl", "en"):
+                texts = self._safe(self._wikipedia, c, lang, query) or []
+                if texts:
+                    return texts
+        return []
+
+    def _wikipedia(self, c: httpx.Client, lang: str, query: str) -> list[str]:
+        r = c.get(WIKIPEDIA.format(lang=lang), params={
+            "action": "query", "format": "json", "generator": "search", "gsrsearch": query,
+            "gsrlimit": 3, "prop": "description|extracts", "exintro": 1, "explaintext": 1,
+            "exsentences": 3, "redirects": 1})
+        r.raise_for_status()
+        pages = sorted(((r.json().get("query") or {}).get("pages") or {}).values(),
+                       key=lambda pg: pg.get("index", 99))
+        for pg in pages:
+            # The article title (brand or product) must be part of what we searched for.
+            if name_matches(pg.get("title", ""), query, need=0.99):
+                return [pg.get("description", ""), pg.get("extract", "")]
+        return []
 
     # ---- Open Food Facts ----------------------------------------------------
     def _off(self, c: httpx.Client, code: str, res: LookupResult) -> bool:
@@ -193,10 +237,44 @@ class Lookup:
         return True
 
     def _off_search_images(self, c: httpx.Client, query: str) -> list[str]:
-        r = c.get(OFF_SEARCH, params={"search_terms": query, "search_simple": 1, "json": 1,
-                                      "page_size": 5, "fields": "image_front_url,product_name"})
+        """Search Open Food Facts by name, only among alcoholic drinks, and only keep
+        products whose name really matches (otherwise 'Tullamore Honey' finds honey ham)."""
+        q = query.replace('"', " ")
+        r = c.get(OFF_SEARCH, params={"q": f'{q} categories_tags:"en:alcoholic-beverages"', "page_size": 10,
+                                      "fields": "product_name,brands,image_front_url"})
         r.raise_for_status()
-        return [p["image_front_url"] for p in r.json().get("products", []) if p.get("image_front_url")]
+        out = []
+        for p in r.json().get("hits", []):
+            brands = p.get("brands") or []
+            label = " ".join([p.get("product_name") or "", *(brands if isinstance(brands, list) else [brands])])
+            if p.get("image_front_url") and name_matches(query, label):
+                out.append(re.sub(r"\.(\d+)\.400\.jpg$", r".\1.full.jpg", p["image_front_url"]))
+        return out
+
+    # ---- OpenGTINDB ---------------------------------------------------------------------
+    def _opengtindb(self, c: httpx.Client, code: str, res: LookupResult) -> bool:
+        if not code.isdigit():
+            return False
+        r = c.get(OPENGTINDB, params={"ean": code, "cmd": "query", "queryid": self.settings.opengtindb_id})
+        r.raise_for_status()
+        text = r.content.decode("utf-8", "replace") if b"\xc3" in r.content else r.content.decode("latin-1")
+        data = dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
+        err = data.get("error", "").strip()
+        if err == "1":          # not found
+            return False
+        if err != "0":
+            raise ValueError(f"OpenGTINDB error {err}")
+        name = (data.get("detailname") or data.get("name") or "").strip()
+        if not name:
+            return False
+        res.sources.append("OpenGTINDB")
+        res.name = res.name or clean_title(name)
+        res.brand = res.brand or (data.get("vendor") or "").strip()
+        res.texts += [data.get("maincat", ""), data.get("subcat", ""), name, data.get("descr", "")]
+        res.description = res.description or (data.get("descr") or "").strip()[:1000]
+        res.volume_ml = res.volume_ml or parse_volume(name) or parse_volume(data.get("pack"))
+        res.abv = res.abv or parse_abv(name) or parse_abv(data.get("descr"))
+        return True
 
     # ---- UPCitemdb ------------------------------------------------------------
     def _upcitemdb(self, c: httpx.Client, code: str, res: LookupResult) -> bool:
@@ -227,8 +305,9 @@ class Lookup:
             return []
         r.raise_for_status()
         out: list[str] = []
-        for it in (r.json().get("items") or [])[:3]:
-            out += it.get("images") or []
+        for it in (r.json().get("items") or [])[:5]:
+            if name_matches(query, f"{it.get('title', '')} {it.get('brand', '')}"):
+                out += it.get("images") or []
         return out
 
     # ---- Brave Search API -------------------------------------------------------
@@ -268,6 +347,27 @@ class Lookup:
             if url:
                 out.append(url)
         return out
+
+
+_STOP = {"de", "het", "een", "the", "and", "en", "of", "with", "met", "la", "le", "les", "di", "da"}
+
+
+def _tokens(text: str) -> set[str]:
+    from .categories import normalize
+    out = set()
+    for t in normalize(text).split():
+        if t in _STOP or len(t) < 2 or re.fullmatch(r"\d+(cl|ml|l|ltr)?|\d+%?", t):
+            continue
+        out.add(t)
+    return out
+
+
+def name_matches(query: str, label: str, need: float = 0.75) -> bool:
+    """At least `need` of the words of the query appear in the label."""
+    q = _tokens(query)
+    if not q:
+        return False
+    return len(q & _tokens(label)) / len(q) >= need
 
 
 def image_query(name: str, brand: str = "") -> str:

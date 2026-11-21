@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Producten{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div>
+    <h1>Producten</h1>
+    <div class="muted small">Alle gescande en ingevoerde producten. Verwijder hier verkeerde scans of producten die je niet meer gebruikt.</div>
+  </div>
+</div>
+
+<form method="get" class="filters">
+  <input type="search" name="q" value="{{ q }}" placeholder="Zoek op naam, merk of barcode…" autocomplete="off">
+  {% if cat %}<input type="hidden" name="cat" value="{{ cat }}">{% endif %}
+  <select name="merk" aria-label="Merk" data-autosubmit>
+    <option value="">Alle merken</option>
+    {% for b, n in brands %}<option value="{{ b }}" {{ 'selected' if b == merk }}>{{ b }} ({{ n }})</option>{% endfor %}
+  </select>
+  <select name="staat" aria-label="Soort" data-autosubmit>
+    <option value="">Alles</option>
+    <option value="onbekend" {{ 'selected' if staat == 'onbekend' }}>Zonder naam</option>
+    <option value="los" {{ 'selected' if staat == 'los' }}>In geen enkele locatie</option>
+  </select>
+  <button class="secondary">Zoeken</button>
+</form>
+
+<div class="chips">
+  <a class="chip {{ 'on' if not cat }}" href="{{ url_with(cat='') }}">Alle <span>{{ counts['_all'] }}</span></a>
+  {% for key, label, color in CATEGORIES %}{% if counts.get(key) %}
+  <a class="chip {{ 'on' if cat == key }}" style="--c: {{ color }}" href="{{ url_with(cat=key) }}">{{ label }} <span>{{ counts[key] }}</span></a>
+  {% endif %}{% endfor %}
+</div>
+
+{% if not items %}
+  <div class="empty panel"><p>Geen producten gevonden.</p></div>
+{% else %}
+<form method="post" action="/producten-verwijderen" id="bulk" data-confirm="Geselecteerde producten helemaal verwijderen? Ze verdwijnen uit alle locaties, inclusief foto's en geschiedenis.">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="back" value="{{ url_with() }}">
+  <div class="bulkbar">
+    <label class="check"><input type="checkbox" id="selectAll"> Alles selecteren</label>
+    <button class="danger small" id="bulkDelete" disabled>Verwijderen (<span id="selCount">0</span>)</button>
+  </div>
+  <div class="cards">
+    {% for it in items %}
+    <article class="card prod-card">
+      <label class="pick" aria-label="Selecteren">
+        <input type="checkbox" name="ids" value="{{ it.id }}" {{ 'disabled' if not it.deletable }}
+               {% if not it.deletable %}title="Staat ook in locaties van anderen"{% endif %}>
+      </label>
+      <a class="card-img" href="/producten/{{ it.id }}">
+        {% if it.image %}<img src="/images/{{ it.image }}" alt="" loading="lazy">
+        {% else %}<img src="/static/bottle.svg" alt="" class="ph">{% endif %}
+      </a>
+      <div class="card-body">
+        <a class="card-title" href="/producten/{{ it.id }}">{{ it.name or 'Onbekend product' }}</a>
+        <div class="card-meta">
+          {% for c in it.cats %}<span class="badge" style="--c: {{ cat_color(c) }}">{{ cat_label(c) }}</span>{% endfor %}
+          {% if it.brand %}<span>{{ it.brand }}</span>{% endif %}
+        </div>
+        <div class="muted small">
+          <span class="mono">{{ it.barcode }}</span> ·
+          {% if it.locs %}{{ it.total }} fl. in {% for lid, lname in it.locs %}<a href="/producten/{{ it.id }}?loc={{ lid }}">{{ lname }}</a>{{ ', ' if not loop.last }}{% endfor %}
+          {% else %}in geen locatie{% endif %}
+        </div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</form>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const form = document.getElementById("bulk");
+  if (!form) return;
+  const boxes = [...form.querySelectorAll("input[name=ids]:not(:disabled)")];
+  const all = document.getElementById("selectAll"), btn = document.getElementById("bulkDelete"),
+        count = document.getElementById("selCount");
+  function update() {
+    const n = boxes.filter((b) => b.checked).length;
+    count.textContent = n; btn.disabled = n === 0;
+    all.checked = n > 0 && n === boxes.length;
+    boxes.forEach((b) => b.closest(".card").classList.toggle("picked", b.checked));
+  }
+  boxes.forEach((b) => b.addEventListener("change", update));
+  all.addEventListener("change", () => { boxes.forEach((b) => { b.checked = all.checked; }); update(); });
+  update();
+})();
+</script>
+{% endblock %}

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ p.name or 'Onbekend product' }}{% endblock %}
 {% block content %}
-{% set back = '/locaties/' ~ location.id if location else '/locaties' %}
+{% set back = '/locaties/' ~ location.id if location else '/producten' %}
 <div class="pagehead">
   <div>
     <div class="crumbs"><a href="/locaties">Locaties</a> /
@@ -15,10 +15,12 @@
   <div class="actions"><a class="button secondary" href="{{ back }}">Terug</a></div>
 </div>
 
-{% if p.lookup_status == 'pending' %}
+{% if p.lookup_status == 'pending' and p.next_lookup_at %}
+  <div class="flash info">Een bron was even niet bereikbaar; dit product wordt automatisch opnieuw opgezocht.</div>
+{% elif p.lookup_status == 'pending' %}
   <div class="flash info" data-autorefresh="3">Dit product wordt op internet opgezocht…</div>
 {% elif p.lookup_status == 'not_found' %}
-  <div class="flash warn">Deze barcode is nergens gevonden. Vul de gegevens hieronder zelf in; daarna wordt automatisch naar een foto gezocht.</div>
+  <div class="flash warn">Deze barcode is (nog) nergens gevonden. Vul de gegevens hieronder zelf in; daarna wordt automatisch naar een foto gezocht. Laat je het leeg, dan zoekt BarManager elke dag opnieuw.</div>
 {% elif p.lookup_status == 'guess' %}
   <div class="flash warn">De naam is overgenomen uit zoekresultaten op internet. Controleer hem even.</div>
 {% endif %}
@@ -129,6 +131,14 @@
       <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
       <button class="ghost small">Opnieuw opzoeken op internet</button>
     </form>
+
+    {% if can_delete %}
+    <form method="post" action="/producten/{{ p.id }}/verwijderen" class="right"
+          data-confirm="'{{ p.name or p.barcode }}' helemaal verwijderen? Het verdwijnt uit alle locaties, inclusief foto's en geschiedenis.">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
+      <button class="ghost small danger">Product helemaal verwijderen</button>
+    </form>
+    {% endif %}
 
     {% if history %}
     <div class="panel">
