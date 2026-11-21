@@ -234,3 +234,16 @@ def test_delete_needs_access_to_all_locations(admin):
     assert "Van admin" not in page
     r = c.post(f"/producten/{own}/verwijderen", data={"csrf": csrf2}, follow_redirects=False)
     assert "msg=" in r.headers["location"]
+
+
+def test_database_photo_kept_but_not_main(admin, settings):
+    c, csrf = admin
+    settings.searxng_url = "http://searxng.test"
+    lid = int(c.post("/locaties", data={"csrf": csrf, "name": "Foto"}, follow_redirects=False)
+              .headers["location"].split("?")[0].rsplit("/", 1)[-1])
+    r = c.post(f"/api/locaties/{lid}/scan", json={"barcode": "5000267014203", "mode": "add"},
+               headers={"X-CSRF-Token": csrf})
+    pid = r.json()["id"]
+    rows = c.app.state.db.all("SELECT source_url FROM product_images WHERE product_id=? ORDER BY position, id", pid)
+    urls = [x["source_url"] for x in rows]
+    assert urls[0].endswith("/jw-web.png") and any(u.endswith(".10.full.jpg") for u in urls[1:])

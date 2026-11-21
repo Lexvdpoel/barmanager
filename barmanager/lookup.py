@@ -48,6 +48,7 @@ class LookupResult:
     texts: list[str] = field(default_factory=list)      # category/description text
     web_texts: list[str] = field(default_factory=list)  # noisy search-result text
     image_urls: list[str] = field(default_factory=list)
+    extra_image_urls: list[str] = field(default_factory=list)  # database photos, kept but never the main one
     sources: list[str] = field(default_factory=list)
     guessed: bool = False                               # name comes from a web search
     transient: bool = False                             # a source failed (timeout, 5xx): try again later
@@ -153,7 +154,9 @@ class Lookup:
                 # Product photos from the web look better than the user photos in Open Food Facts:
                 # put them first, keep the database photos as fallback.
                 web = self._safe(self._web_images, c, image_query(res.name, res.brand)) or []
-                res.image_urls = list(dict.fromkeys([*web, *res.image_urls]))
+                if web:
+                    res.extra_image_urls = [u for u in res.image_urls if u not in web]
+                    res.image_urls = list(dict.fromkeys(web))
             if res.found and not res.image_urls:
                 res.add_images(self._image_search(c, image_query(res.name, res.brand)))
         if res.found:

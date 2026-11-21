@@ -89,4 +89,5 @@ def test_searxng_barcode_and_texts(settings):
 def test_web_photos_first(settings):
     settings.searxng_url = "http://searxng.test"
     res = FakeLookup(settings).lookup("5000267014203")
-    assert res.image_urls[0].endswith("/jw-web.png") and res.image_urls[1].endswith(".10.full.jpg")
+    assert res.image_urls[0].endswith("/jw-web.png")
+    assert res.extra_image_urls and res.extra_image_urls[0].endswith(".10.full.jpg")

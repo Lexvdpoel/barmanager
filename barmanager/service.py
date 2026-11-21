@@ -308,6 +308,9 @@ class LookupWorker:
                      ", ".join(res.sources) or "-")
             if res.image_urls:
                 download_images(self.db, self.settings, self.lookup, product_id, res.image_urls)
+            if res.extra_image_urls:
+                # Open Food Facts / UPCitemdb photos: kept as extra photos behind the web photos.
+                download_images(self.db, self.settings, self.lookup, product_id, res.extra_image_urls, limit=2)
             self.wiki_classify(product_id)
         elif job == "images":
             urls = self.lookup.image_search(image_query(p["name"], p["brand"]))
