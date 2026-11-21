@@ -1,8 +1,8 @@
 """Optional local language model (Ollama, e.g. Qwen 2.5 3B) that fills in missing product details.
 
 What it does: for every bottle with a known name it adds what is still empty - brand, country,
-alcohol percentage, a short Dutch description and, when the categoriser gave up ('Overig'),
-the category. It never overwrites what a user or a product database filled in, and every
+a short English description and, when the categoriser gave up ('Overig'), the category. Exact
+numbers such as the alcohol percentage are left alone: a 3B model gets those wrong too often. It never overwrites what a user or a product database filled in, and every
 field it fills is remembered so the product page can mark it as "AI".
 
 What it does not do: invent a product for an unknown barcode. A small model does not know
@@ -22,16 +22,26 @@ from .db import Database
 log = logging.getLogger("barmanager.ai")
 
 MAX_ATTEMPTS = 3
-FIELDS_LABEL = {"brand": "merk", "country": "land", "abv": "alcohol", "description": "omschrijving",
-                "category": "categorie"}
+FIELDS_LABEL = {"brand": "merk", "country": "land", "description": "omschrijving", "category": "categorie"}
 
 SYSTEM = (
-    "Je bent een drankenkenner die een voorraadsysteem voor een bar helpt. Je krijgt gegevens van één "
-    "fles drank en vult ontbrekende gegevens aan. Antwoord alleen met feiten die je zeker weet over dit "
-    "specifieke product of merk; laat een veld leeg (lege tekst of 0) als je het niet zeker weet. "
-    "Verzin niets. Schrijf de omschrijving in het Nederlands, maximaal drie korte zinnen: wat voor drank "
-    "het is, waar het vandaan komt en hoe het smaakt of gebruikt wordt."
+    "You help a bar keep its inventory. You get one bottle of drink and fill in missing details. "
+    "Only state facts you are sure of; leave a field empty when unsure. Never invent anything.\n"
+    "- brand: the brand name exactly as it appears in the product name (e.g. 'Jim Beam'), nothing added.\n"
+    "- country: country of origin in English (e.g. 'Scotland', 'United States').\n"
+    "- category: what kind of drink it is.\n"
+    "- description: ONE or TWO short sentences in English, max 200 characters: what kind of drink, "
+    "from where, main taste. No marketing, no repetition.\n"
+    "- sure: true only if you really know this product or brand."
 )
+
+
+CATEGORY_EN = {
+    "vodka": "vodka", "jenever": "Dutch genever", "likeur": "liqueur", "bitter": "herbal bitter / amaro",
+    "aperitief": "aperitif, vermouth", "port": "port, sherry, fortified wine", "wijn": "wine",
+    "bubbels": "sparkling wine, champagne", "bier": "beer", "mixer": "soft drink, tonic, mixer",
+    "siroop": "syrup", "sap": "juice", "additief": "cocktail bitters, garnish", "overig": "other",
+}
 
 
 def _schema() -> dict:
@@ -39,15 +49,14 @@ def _schema() -> dict:
     return {
         "type": "object",
         "properties": {
-            "brand": {"type": "string"},
-            "country": {"type": "string"},
-            "abv": {"type": "number"},
+            "brand": {"type": "string", "maxLength": 40},
+            "country": {"type": "string", "maxLength": 30},
             "category": {"type": "string", "enum": keys},
-            "also": {"type": "array", "items": {"type": "string", "enum": keys}},
-            "description": {"type": "string"},
+            "also": {"type": "array", "items": {"type": "string", "enum": keys}, "maxItems": 2},
+            "description": {"type": "string", "maxLength": 220},
             "sure": {"type": "boolean"},
         },
-        "required": ["brand", "country", "abv", "category", "also", "description", "sure"],
+        "required": ["brand", "country", "category", "also", "description", "sure"],
     }
 
 
@@ -89,25 +98,24 @@ class Enricher:
         """Ask the model about one product. Returns the cleaned-up answer."""
         cat = product["category"]
         facts = {
-            "naam": product["name"],
-            "merk": product["brand"] or "onbekend",
-            "inhoud_ml": product["volume_ml"] or "onbekend",
-            "alcohol_procent": product["abv"] if product["abv"] is not None else "onbekend",
-            "categorie": categories.label(cat) if cat != categories.DEFAULT else "onbekend",
-            "omschrijving": product["description"] or "",
+            "name": product["name"],
+            "brand": product["brand"] or "unknown",
+            "volume_ml": product["volume_ml"] or "unknown",
+            "abv_percent": product["abv"] if product["abv"] is not None else "unknown",
+            "category": cat if cat != categories.DEFAULT else "unknown",
         }
-        prompt = "Fles:\n" + json.dumps(facts, ensure_ascii=False, indent=1)
+        prompt = "Bottle:\n" + json.dumps(facts, ensure_ascii=False, indent=1)
         hints = [h.strip() for h in hints if h and h.strip()]
         if hints:
-            prompt += "\n\nWat Wikipedia hierover zegt:\n" + "\n".join(hints)[:1500]
-        prompt += ("\n\nKies 'category' uit: " + ", ".join(f"{k} ({categories.label(k)})" for k in categories.KEYS)
-                   + ". Zet in 'also' extra categorieën als de drank er ook onder valt (bijv. een whisky-likeur: "
-                   "category likeur, also [whisky]). 'country' is het land van herkomst in het Nederlands. "
-                   "'abv' is het alcoholpercentage. 'sure' is true als je dit product of merk echt kent.")
+            prompt += "\n\nWikipedia about it:\n" + "\n".join(hints)[:1200]
+        prompt += ("\n\nCategories: " + ", ".join(f"{k} ({CATEGORY_EN.get(k, k)})" for k in categories.KEYS)
+                   + ". 'also' is only for a flavoured liqueur made from a spirit (e.g. whisky liqueur: "
+                   "category likeur, also [whisky]); otherwise leave it empty.")
         body = {
             "model": self.model, "stream": False, "format": _schema(),
             "keep_alive": "30m",
-            "options": {"temperature": 0.1, "num_ctx": 4096, "num_predict": 400},
+            "options": {"temperature": 0.1, "num_ctx": 4096, "num_predict": 300, "repeat_penalty": 1.15,
+                        "num_thread": 3},
             "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
         }
         with self.client() as c:
@@ -121,15 +129,13 @@ def clean_answer(a: dict) -> dict:
     def text(key, n):
         v = a.get(key)
         v = v.strip() if isinstance(v, str) else ""
-        return "" if v.lower() in ("", "onbekend", "unknown", "n/a", "-", "geen") else v[:n]
+        return "" if v.lower() in ("", "onbekend", "unknown", "n/a", "-", "geen", "none") else v[:n]
 
-    abv = a.get("abv")
-    abv = float(abv) if isinstance(abv, (int, float)) and 0.5 <= abv <= 80 else None
     cat = a.get("category") if categories.valid(a.get("category", "")) else categories.DEFAULT
     also = [c for c in (a.get("also") or []) if isinstance(c, str) and categories.valid(c)
-            and c not in (cat, categories.DEFAULT)]
-    return {"brand": text("brand", 100), "country": text("country", 60), "abv": abv, "category": cat,
-            "also": list(dict.fromkeys(also))[:3], "description": text("description", 600),
+            and c not in (cat, categories.DEFAULT)] if cat == "likeur" else []
+    return {"brand": text("brand", 100), "country": text("country", 60), "category": cat,
+            "also": list(dict.fromkeys(also))[:2], "description": text("description", 300),
             "sure": bool(a.get("sure"))}
 
 
@@ -139,16 +145,16 @@ def apply_answer(db: Database, product_id: int, ans: dict) -> list[str]:
     if not p:
         return []
     filled, sets, args = [], [], []
-    # Facts about the bottle only when the model says it knows it; a description it may always try.
+    # Facts only when the model says it knows the product; the category it may always guess.
+    name_words = set(categories.normalize(p["name"]).split())
     if ans["sure"]:
-        if not p["brand"] and ans["brand"]:
+        # The brand must be taken from the name itself, not made up.
+        if not p["brand"] and ans["brand"] and set(categories.normalize(ans["brand"]).split()) <= name_words:
             filled.append("brand"); sets.append("brand=?"); args.append(ans["brand"])
         if not p["country"] and ans["country"]:
             filled.append("country"); sets.append("country=?"); args.append(ans["country"])
-        if p["abv"] is None and ans["abv"] is not None:
-            filled.append("abv"); sets.append("abv=?"); args.append(ans["abv"])
-    if not p["description"] and ans["description"] and ans["sure"]:
-        filled.append("description"); sets.append("description=?"); args.append(ans["description"])
+        if not p["description"] and ans["description"]:
+            filled.append("description"); sets.append("description=?"); args.append(ans["description"])
     if not p["category_locked"] and p["category"] == categories.DEFAULT and ans["category"] != categories.DEFAULT:
         filled.append("category"); sets.append("category=?, extra_categories=?")
         args += [ans["category"], ",".join(ans["also"])]
@@ -224,7 +230,7 @@ class AiWorker:
             return []
         self.busy_with = product_id
         try:
-            hints = self.lookup.wikipedia_texts(p["name"], p["brand"])
+            hints = self.lookup.wikipedia_texts(p["name"], p["brand"], langs=("en",))
             started = time.time()
             ans = self.enricher.ask(p, hints)
         except (httpx.ReadTimeout, json.JSONDecodeError, ValueError) as exc:

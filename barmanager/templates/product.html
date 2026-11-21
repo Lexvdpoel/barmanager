@@ -109,7 +109,7 @@
           </select>
         </label>
         <label>Inhoud (ml) <input name="volume_ml" type="number" min="1" value="{{ p.volume_ml or '' }}" placeholder="700"></label>
-        <label>Alcohol (%) {% if "abv" in ai_fields %}<span class="ai-tag" title="Aangevuld door AI; controleer het even">AI</span>{% endif %} <input name="abv" inputmode="decimal" value="{{ '%g'|format(p.abv) if p.abv is not none else '' }}" placeholder="40"></label>
+        <label>Alcohol (%) <input name="abv" inputmode="decimal" value="{{ '%g'|format(p.abv) if p.abv is not none else '' }}" placeholder="40"></label>
         <label>Land van herkomst {% if "country" in ai_fields %}<span class="ai-tag" title="Aangevuld door AI; controleer het even">AI</span>{% endif %} <input name="country" value="{{ p.country }}" maxlength="60" placeholder="bijv. Schotland"></label>
       </div>
       <fieldset class="cat-extra">

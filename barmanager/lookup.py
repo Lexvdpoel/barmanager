@@ -175,13 +175,13 @@ class Lookup:
             return None
 
     # ---- Wikipedia ------------------------------------------------------------------
-    def wikipedia_texts(self, name: str, brand: str = "") -> list[str]:
+    def wikipedia_texts(self, name: str, brand: str = "", langs=("nl", "en")) -> list[str]:
         """Short description + intro of the Wikipedia article about this drink or its brand."""
         query = image_query(re.sub(r"\d+([.,]\d+)?\s*(cl|ml|l|ltr|%)\b", " ", name or "", flags=re.I), brand)
         if not _tokens(query):
             return []
         with self.client() as c:
-            for lang in ("nl", "en"):
+            for lang in langs:
                 texts = self._safe(self._wikipedia, c, lang, query) or []
                 if texts:
                     return texts
