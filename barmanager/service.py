@@ -113,6 +113,23 @@ def apply_lookup(db: Database, product_id: int, res: LookupResult) -> None:
 RETRY_DELAYS = [120, 600, 3600, 6 * 3600]
 
 
+def prefer_web_photos(db: Database, settings, lookup: Lookup, product_id: int) -> int:
+    """Product only has (amateur) Open Food Facts photos: add web photos and put them first."""
+    p = db.one("SELECT * FROM products WHERE id=?", product_id)
+    if not p or not p["name"]:
+        return 0
+    before = {r["id"] for r in product_images(db, product_id)}
+    urls = lookup.web_image_search(image_query(p["name"], p["brand"]))
+    added = download_images(db, settings, lookup, product_id, urls, limit=2)
+    if added:
+        rows = product_images(db, product_id)
+        ordered = [r for r in rows if r["id"] not in before] + [r for r in rows if r["id"] in before]
+        for pos, r in enumerate(ordered):
+            db.run("UPDATE product_images SET position=? WHERE id=?", pos, r["id"])
+        log.info("product %s: %d webfoto('s) toegevoegd als hoofdfoto", product_id, added)
+    return added
+
+
 def accessible_location_ids(db: Database, user) -> set[int] | None:
     """Locations the user may see; None means all (admin)."""
     if user["is_admin"]:
@@ -231,6 +248,12 @@ class LookupWorker:
         for row in self.db.all("SELECT id FROM products WHERE lookup_status='pending' "
                                "AND (next_lookup_at IS NULL OR next_lookup_at <= ?)", time.time()):
             self.enqueue(row["id"])
+        if self.lookup.can_web_search:
+            for row in self.db.all("""SELECT p.id FROM products p WHERE p.name != '' AND EXISTS (
+                    SELECT 1 FROM product_images i WHERE i.product_id = p.id) AND NOT EXISTS (
+                    SELECT 1 FROM product_images i WHERE i.product_id = p.id
+                    AND i.source_url NOT LIKE '%openfoodfacts%')"""):
+                self.enqueue(row["id"], "webphotos")
 
     def enqueue_due(self) -> int:
         """Queue products whose retry time has come (temporary failures, daily re-check)."""
@@ -291,6 +314,8 @@ class LookupWorker:
             download_images(self.db, self.settings, self.lookup, product_id, urls)
         elif job == "classify":
             self.wiki_classify(product_id)
+        elif job == "webphotos":
+            prefer_web_photos(self.db, self.settings, self.lookup, product_id)
 
     def wiki_classify(self, product_id: int) -> None:
         """Name known but category still 'Overig': ask Wikipedia what kind of drink it is."""

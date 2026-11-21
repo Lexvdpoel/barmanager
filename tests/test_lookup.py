@@ -84,3 +84,9 @@ def test_searxng_barcode_and_texts(settings):
     assert len(texts) == 1 and "Speyside" in texts[0]
     urls = lk.image_search("Glenfarclas 12 Years")
     assert "https://images.example.com/gf.png" in urls and not any("ham2" in u for u in urls)
+
+
+def test_web_photos_first(settings):
+    settings.searxng_url = "http://searxng.test"
+    res = FakeLookup(settings).lookup("5000267014203")
+    assert res.image_urls[0].endswith("/jw-web.png") and res.image_urls[1].endswith(".10.full.jpg")

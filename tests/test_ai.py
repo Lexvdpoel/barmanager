@@ -143,3 +143,17 @@ def test_identify_rejects_name_not_in_results(settings):
     worker.process(pid)
     p = db.one("SELECT * FROM products WHERE id=?", pid)
     assert p["name"] == "Iets" and "name" in p["ai_fields"]
+
+
+def test_abv_only_when_in_sources_and_extra_categories(settings):
+    db, worker, a, _ = setup(settings)
+    db.run("UPDATE products SET abv=NULL, name='Southern Comfort', category='likeur' WHERE id=?", a)
+    ans = clean_answer({"brand": "Southern Comfort", "country": "United States", "category": "likeur",
+                        "description": "Fruit-flavoured whiskey liqueur from New Orleans.", "abv": 35,
+                        "sure": True})
+    filled = apply_answer(db, a, ans, "Southern Comfort Original 35% vol, 70cl")
+    p = db.one("SELECT * FROM products WHERE id=?", a)
+    assert p["abv"] == 35 and "abv" in filled
+    assert "whisky" in p["extra_categories"] and "extra" in filled
+    db.run("UPDATE products SET abv=NULL WHERE id=?", a)
+    assert "abv" not in apply_answer(db, a, {**ans, "abv": 40.0}, "Southern Comfort 35% vol")

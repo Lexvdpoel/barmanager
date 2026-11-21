@@ -149,6 +149,11 @@ class Lookup:
                             break
             if not res.found and self.can_web_search:
                 safe(self._web_barcode, c, barcode, res)
+            if res.found and self.can_web_search:
+                # Product photos from the web look better than the user photos in Open Food Facts:
+                # put them first, keep the database photos as fallback.
+                web = self._safe(self._web_images, c, image_query(res.name, res.brand)) or []
+                res.image_urls = list(dict.fromkeys([*web, *res.image_urls]))
             if res.found and not res.image_urls:
                 res.add_images(self._image_search(c, image_query(res.name, res.brand)))
         if res.found:
@@ -163,10 +168,7 @@ class Lookup:
         if not query.strip():
             return []
         urls: list[str] = []
-        if self.brave_key:
-            urls += self._safe(self._brave_images, c, query) or []
-        elif self.searxng:
-            urls += self._safe(self._searxng_images, c, query) or []
+        urls += self._safe(self._web_images, c, query) or []
         if len(urls) < self.settings.max_images:
             urls += self._safe(self._off_search_images, c, query) or []
         if len(urls) < self.settings.max_images and self.settings.use_upcitemdb:
@@ -390,6 +392,19 @@ class Lookup:
         res.volume_ml = res.volume_ml or parse_volume(name) or parse_volume(joined)
         res.abv = res.abv or parse_abv(joined)
         return True
+
+    def _web_images(self, c: httpx.Client, query: str) -> list[str]:
+        if self.brave_key:
+            return self._brave_images(c, query)
+        if self.searxng:
+            return self._searxng_images(c, query)
+        return []
+
+    def web_image_search(self, query: str) -> list[str]:
+        if not self.can_web_search or not query.strip():
+            return []
+        with self.client() as c:
+            return self._safe(self._web_images, c, query) or []
 
     def _searxng_images(self, c: httpx.Client, query: str) -> list[str]:
         r = c.get(self.searxng + "/search", params={"q": query, "format": "json", "categories": "images"},

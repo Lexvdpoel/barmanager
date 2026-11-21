@@ -480,6 +480,8 @@ def save_product(request: Request, pid: int, user=Depends(require_user), csrf: s
            "description": description.strip()[:2000], "category": category}
     # A field the user changed is no longer "filled in by AI".
     new["name"] = name.strip()[:150]
+    new["extra"] = extra_s
+    p = {**dict(p), "extra": p["extra_categories"] or ""}
     # 'name' stays as marker that the barcode was already identified, so it never runs again.
     ai_fields = ",".join(f for f in (p["ai_fields"] or "").split(",") if f in new and (f == "name" or new[f] == p[f]))
     db.run("""UPDATE products SET name=?, brand=?, category=?, extra_categories=?, category_locked=?,

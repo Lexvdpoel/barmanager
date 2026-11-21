@@ -24,12 +24,13 @@ import httpx
 
 from . import categories
 from .db import Database
-from .lookup import name_matches
+from .lookup import _ABV, name_matches
 
 log = logging.getLogger("barmanager.ai")
 
 MAX_ATTEMPTS = 3
-FIELDS_LABEL = {"brand": "merk", "country": "land", "description": "omschrijving", "category": "categorie"}
+FIELDS_LABEL = {"brand": "merk", "country": "land", "description": "omschrijving", "category": "categorie",
+                "abv": "alcohol", "extra": "valt ook onder"}
 
 SYSTEM = (
     "You help a bar keep its inventory. You get one bottle of drink and SOURCES found about it "
@@ -45,6 +46,7 @@ SYSTEM = (
     "do not: describe only the kind of drink the name says it is, WITHOUT any names, places, years "
     "or numbers. Always write English, also when the sources are in another language. "
     "No marketing, no repetition, no remarks about the text itself.\n"
+    "- abv: alcohol percentage of this bottle as stated in the sources; 0 if no source states it.\n"
     "- sure: true only if the sources clearly are about this product or its brand."
 )
 
@@ -67,9 +69,10 @@ def _schema() -> dict:
             "category": {"type": "string", "enum": keys},
             "also": {"type": "array", "items": {"type": "string", "enum": keys}, "maxItems": 2},
             "description": {"type": "string", "maxLength": 220},
+            "abv": {"type": "number"},
             "sure": {"type": "boolean"},
         },
-        "required": ["brand", "country", "category", "also", "description", "sure"],
+        "required": ["brand", "country", "category", "also", "description", "abv", "sure"],
     }
 
 
@@ -210,12 +213,22 @@ def clean_answer(a: dict) -> dict:
     cat = a.get("category") if categories.valid(a.get("category", "")) else categories.DEFAULT
     also = [c for c in (a.get("also") or []) if isinstance(c, str) and categories.valid(c)
             and c not in (cat, categories.DEFAULT)] if cat == "likeur" else []
-    return {"brand": text("brand", 100), "country": text("country", 60), "category": cat,
+    abv = a.get("abv")
+    abv = float(abv) if isinstance(abv, (int, float)) and not isinstance(abv, bool) and 0.5 <= abv <= 80 else None
+    return {"brand": text("brand", 100), "country": text("country", 60), "category": cat, "abv": abv,
             "also": list(dict.fromkeys(also))[:2], "description": tidy(text("description", 300)),
             "sure": bool(a.get("sure"))}
 
 
-def apply_answer(db: Database, product_id: int, ans: dict) -> list[str]:
+def abv_in(text: str, abv: float) -> bool:
+    """Is this alcohol percentage literally in the source text (e.g. '40%', '40 % vol', '15,5%')?"""
+    for m in _ABV.finditer(text or ""):
+        if abs(float(m.group(1).replace(",", ".")) - abv) < 0.05:
+            return True
+    return False
+
+
+def apply_answer(db: Database, product_id: int, ans: dict, source_text: str = "") -> list[str]:
     """Fill only empty fields. Returns the names of the fields that were filled."""
     p = db.one("SELECT * FROM products WHERE id=?", product_id)
     if not p:
@@ -230,6 +243,9 @@ def apply_answer(db: Database, product_id: int, ans: dict) -> list[str]:
             filled.append("brand"); sets.append("brand=?"); args.append(ans["brand"])
         if not p["country"] and ans["country"]:
             filled.append("country"); sets.append("country=?"); args.append(ans["country"])
+        # A number only when it is really in the sources, never from the model's memory.
+        if p["abv"] is None and ans.get("abv") and abv_in(source_text, ans["abv"]):
+            filled.append("abv"); sets.append("abv=?"); args.append(ans["abv"])
     if not p["description"] and ans["description"]:
         filled.append("description"); sets.append("description=?"); args.append(ans["description"])
     if not p["category_locked"] and p["category"] == categories.DEFAULT and ans["category"] != categories.DEFAULT:
@@ -242,7 +258,29 @@ def apply_answer(db: Database, product_id: int, ans: dict) -> list[str]:
                     "ELSE source || ', AI' END")
     sets.append("ai_for=?, ai_attempts=0"); args.append(p["name"])
     db.run(f"UPDATE products SET {', '.join(sets)} WHERE id=?", *args, product_id)
+    if add_extra_categories(db, product_id):
+        filled.append("extra")
     return filled
+
+
+def add_extra_categories(db: Database, product_id: int) -> bool:
+    """'Valt ook onder': run the categoriser over name + (new) description and add what it finds,
+    e.g. 'whiskey liqueur' -> also whisky. Only when it agrees on the main category."""
+    p = db.one("SELECT * FROM products WHERE id=?", product_id)
+    if not p or p["category_locked"] or p["category"] == categories.DEFAULT:
+        return False
+    cats = categories.classify_all(texts=[p["name"], p["description"]], brand=p["brand"])
+    if cats[0] != p["category"]:
+        return False
+    have = [c for c in (p["extra_categories"] or "").split(",") if c]
+    new = [c for c in cats[1:] if c not in have and c != p["category"]]
+    if not new:
+        return False
+    extra = sorted(have + new, key=lambda c: categories.ORDER.get(c, 99))
+    old = [f for f in (p["ai_fields"] or "").split(",") if f]
+    db.run("UPDATE products SET extra_categories=?, ai_fields=? WHERE id=?",
+           ",".join(extra), ",".join(dict.fromkeys(old + ["extra"])), product_id)
+    return True
 
 
 class AiWorker:
@@ -355,7 +393,7 @@ class AiWorker:
             return []
         finally:
             self.busy_with = None
-        filled = apply_answer(self.db, product_id, ans)
+        filled = apply_answer(self.db, product_id, ans, "\n".join(t for v in sources.values() for t in v))
         log.info("AI %s (%.0fs, bronnen: %s): %s", p["name"], time.time() - started,
                  ", ".join(sources) or "geen", ", ".join(FIELDS_LABEL[f] for f in filled) or "niets aangevuld")
         return filled

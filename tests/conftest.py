@@ -74,6 +74,7 @@ def fake_handler(request: httpx.Request) -> httpx.Response:
         if request.url.params.get("categories") == "images":
             return httpx.Response(200, json={"results": [
                 {"title": "Glenfarclas 12 Years bottle", "img_src": "https://images.example.com/gf.png"},
+                {"title": "Johnnie Walker Red Label 70cl", "img_src": "https://images.example.com/jw-web.png"},
                 {"title": "Random ham", "img_src": "https://images.example.com/ham2.png"}]})
         if q == "8001500009892":
             return httpx.Response(200, json={"results": [
