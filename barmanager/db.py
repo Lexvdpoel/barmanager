@@ -22,7 +22,9 @@ CREATE TABLE IF NOT EXISTS locations(
     name TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
     owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at REAL NOT NULL
+    created_at REAL NOT NULL,
+    track_levels INTEGER NOT NULL DEFAULT 0,     -- keep track of open bottles / fill levels
+    menu_token TEXT                              -- public bar menu link, NULL = off
 );
 CREATE TABLE IF NOT EXISTS location_members(
     location_id INTEGER NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
@@ -49,6 +51,7 @@ CREATE TABLE IF NOT EXISTS products(
     ai_for TEXT NOT NULL DEFAULT '',             -- name the AI last filled this product in for
     ai_attempts INTEGER NOT NULL DEFAULT 0,
     ai_fields TEXT NOT NULL DEFAULT '',          -- fields the AI filled, e.g. 'brand,description'
+    shelf_days INTEGER,                          -- keeps N days after opening (NULL = default by type)
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL
 );
@@ -69,6 +72,11 @@ CREATE TABLE IF NOT EXISTS inventory(
     min_quantity INTEGER NOT NULL DEFAULT 0,
     notes TEXT NOT NULL DEFAULT '',
     updated_at REAL NOT NULL,
+    open_level INTEGER,                          -- % left in the open bottle, NULL = none open
+    opened_at REAL,
+    price REAL,                                  -- purchase price per bottle
+    bought_at TEXT NOT NULL DEFAULT '',
+    shop TEXT NOT NULL DEFAULT '',
     UNIQUE(location_id, product_id)
 );
 CREATE TABLE IF NOT EXISTS movements(
@@ -81,6 +89,64 @@ CREATE TABLE IF NOT EXISTS movements(
     created_at REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_movements_location ON movements(location_id, created_at);
+-- Open bottles: how much was poured, for statistics (only for locations that track fill levels).
+CREATE TABLE IF NOT EXISTS level_log(
+    id INTEGER PRIMARY KEY,
+    location_id INTEGER NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    event TEXT NOT NULL,                         -- open | niveau | leeg
+    level_before INTEGER,
+    level_after INTEGER,
+    bottles INTEGER NOT NULL DEFAULT 0,          -- bottles finished by this event
+    ml REAL NOT NULL DEFAULT 0,                  -- millilitres poured
+    value REAL NOT NULL DEFAULT 0,               -- euros poured (when a price is known)
+    created_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_level_log ON level_log(location_id, created_at);
+-- Shopping list: manual entries, free text, and auto entries the user hid ('verborgen').
+CREATE TABLE IF NOT EXISTS shopping_items(
+    id INTEGER PRIMARY KEY,
+    location_id INTEGER REFERENCES locations(id) ON DELETE CASCADE,
+    product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+    name TEXT NOT NULL DEFAULT '',
+    kind TEXT NOT NULL DEFAULT 'handmatig',     -- handmatig | verborgen
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS cocktails(
+    id TEXT PRIMARY KEY,                         -- TheCocktailDB idDrink
+    name TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT '',
+    alcoholic TEXT NOT NULL DEFAULT '',
+    glass TEXT NOT NULL DEFAULT '',
+    iba TEXT NOT NULL DEFAULT '',
+    instructions TEXT NOT NULL DEFAULT '',
+    thumb_url TEXT NOT NULL DEFAULT '',
+    image TEXT NOT NULL DEFAULT '',              -- local file under images/cocktails/
+    updated_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS cocktail_ingredients(
+    cocktail_id TEXT NOT NULL REFERENCES cocktails(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    measure TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY(cocktail_id, pos)
+);
+-- User choices per ingredient: 'always' in the house, or linked to specific products.
+CREATE TABLE IF NOT EXISTS ingredient_prefs(
+    ingredient TEXT PRIMARY KEY,                 -- normalised ingredient name
+    always INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS ingredient_links(
+    ingredient TEXT NOT NULL,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    PRIMARY KEY(ingredient, product_id)
+);
+CREATE TABLE IF NOT EXISTS kv(
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 
@@ -114,6 +180,18 @@ class Database:
             self._conn.execute("ALTER TABLE products ADD COLUMN ai_for TEXT NOT NULL DEFAULT ''")
             self._conn.execute("ALTER TABLE products ADD COLUMN ai_attempts INTEGER NOT NULL DEFAULT 0")
             self._conn.execute("ALTER TABLE products ADD COLUMN ai_fields TEXT NOT NULL DEFAULT ''")
+        if "shelf_days" not in cols:
+            self._conn.execute("ALTER TABLE products ADD COLUMN shelf_days INTEGER")
+        add = {
+            "locations": [("track_levels", "INTEGER NOT NULL DEFAULT 0"), ("menu_token", "TEXT")],
+            "inventory": [("open_level", "INTEGER"), ("opened_at", "REAL"), ("price", "REAL"),
+                          ("bought_at", "TEXT NOT NULL DEFAULT ''"), ("shop", "TEXT NOT NULL DEFAULT ''")],
+        }
+        for table, columns in add.items():
+            have = {r["name"] for r in self._conn.execute(f"PRAGMA table_info({table})")}
+            for name, decl in columns:
+                if name not in have:
+                    self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
 
     def one(self, sql: str, *args):
         with self._lock:

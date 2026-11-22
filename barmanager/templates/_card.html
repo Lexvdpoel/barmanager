@@ -1,11 +1,14 @@
 {% set st = stock_state(it) %}
+{% set ob = open_info(it) if loc.track_levels and it.quantity > 0 else none %}
 <article class="card st-{{ st }}" data-pid="{{ it.id }}">
   <a class="card-img" href="/producten/{{ it.id }}?loc={{ loc.id }}">
     {% if it.image %}<img src="/images/{{ it.image }}" alt="" loading="lazy">
     {% else %}<img src="/static/bottle.svg" alt="" class="ph">{% endif %}
     {% if it.lookup_status == 'pending' %}<span class="pill busy">zoeken…</span>
     {% elif it.lookup_status == 'not_found' and not it.name %}<span class="pill bad">onbekend</span>
-    {% elif it.lookup_status == 'guess' %}<span class="pill warn">controleren</span>{% endif %}
+    {% elif it.lookup_status == 'guess' %}<span class="pill warn">controleren</span>
+    {% elif ob and ob.state == 'over' %}<span class="pill bad">over datum</span>{% endif %}
+    {% if ob %}<span class="level" title="Open fles: nog {{ ob.level }}%"><span style="height: {{ ob.level }}%"></span></span>{% endif %}
   </a>
   <div class="card-body">
     <a class="card-title" href="/producten/{{ it.id }}?loc={{ loc.id }}">{{ it.name or 'Onbekend product' }}</a>
@@ -13,6 +16,7 @@
       {% for c in it.cats %}<span class="badge" style="--c: {{ cat_color(c) }}">{{ cat_label(c) }}</span>{% endfor %}
       {% if it.volume_ml %}<span>{{ '%g'|format(it.volume_ml / 10) }} cl</span>{% endif %}
       {% if it.abv %}<span>{{ '%g'|format(it.abv) }}%</span>{% endif %}
+      {% if ob %}<span class="{{ 'bad' if ob.state == 'over' else ('warn' if ob.state == 'bijna' else '') }}">open · {{ ob.level }}%</span>{% endif %}
     </div>
     {% if not it.name %}<div class="muted small mono">{{ it.barcode }}</div>{% endif %}
   </div>

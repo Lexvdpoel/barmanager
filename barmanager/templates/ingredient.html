@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ naam }}{% endblock %}
+{% block main_class %}medium{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div>
+    <div class="crumbs"><a href="/cocktails">Cocktails</a> / ingrediënt</div>
+    <h1>{{ naam }}</h1>
+    <div class="muted small">Komt voor in {{ used_in }} cocktail{{ 's' if used_in != 1 }}</div>
+  </div>
+  <div class="actions"><a class="button secondary" href="{{ back }}">Terug</a></div>
+</div>
+
+<form method="post" action="/cocktails-ingredient" class="stack-lg">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="naam" value="{{ naam }}">
+  <input type="hidden" name="back" value="{{ back }}">
+  <input type="hidden" name="loc" value="{{ loc or '' }}">
+  <div class="panel stack">
+    <label class="check"><input type="checkbox" name="always" value="1" {{ 'checked' if always }}>
+      Dit heb ik altijd in huis (hoeft niet op voorraad te staan)</label>
+  </div>
+
+  <div class="panel stack">
+    <h2 class="flush">Welke flessen kun je hiervoor gebruiken?</h2>
+    <p class="muted small">Herkend = BarManager koppelt deze fles zelf op naam en categorie. Vink een fles aan om hem
+      altijd voor {{ naam }} te laten tellen, ook als de naam niet wordt herkend.</p>
+    {% if stock %}
+    <div class="link-list">
+      {% for p in stock %}
+      <label class="link-row">
+        <input type="hidden" name="shown" value="{{ p.id }}">
+        <input type="checkbox" name="products" value="{{ p.id }}" {{ 'checked' if p.linked }}>
+        <span class="link-img">{% if p.image %}<img src="/images/{{ p.image }}" alt="" loading="lazy">{% endif %}</span>
+        <span class="link-name">{{ p.name or p.barcode }}
+          {% if p.auto == 'exact' %}<span class="badge" style="--c: #1f8a4c">herkend</span>
+          {% elif p.auto == 'sub' %}<span class="badge" style="--c: #b26a00">vervanger</span>{% endif %}</span>
+      </label>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted">Er staan geen flessen op voorraad{% if location %} in {{ location.name }}{% endif %}.</p>
+    {% endif %}
+  </div>
+  <div class="row"><button>Opslaan</button></div>
+</form>
+{% endblock %}

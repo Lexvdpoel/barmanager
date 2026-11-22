@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ loc.name }}{% endblock %}
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+{% block main_class %}menu-page{% endblock %}
+{% block content %}
+<header class="menu-head">
+  <h1>{{ loc.name }}</h1>
+  {% if loc.description %}<p class="muted">{{ loc.description }}</p>{% endif %}
+  <nav class="tabs">
+    {% if drinks %}<a class="tab" href="#cocktails">Cocktails <span>{{ drinks|length }}</span></a>{% endif %}
+    <a class="tab" href="#bar">In de bar <span>{{ n_items }}</span></a>
+  </nav>
+</header>
+
+{% if drinks %}
+<section id="cocktails">
+  <h2>Cocktails</h2>
+  <div class="cocktail-grid">
+    {% for c in drinks %}
+    <a class="cocktail-card" href="/kaart/{{ token }}/cocktail/{{ c.id }}">
+      <span class="cocktail-img">{% if c.image %}<img src="/images/{{ c.image }}" alt="" loading="lazy">{% else %}<img src="/static/bottle.svg" alt="" class="ph">{% endif %}</span>
+      <span class="cocktail-body"><b>{{ c.name }}</b>
+        <span class="muted small">{{ c.ingredients|map(attribute='name')|join(', ') }}</span></span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section id="bar">
+  <h2>In de bar</h2>
+  {% for key, items in groups %}
+  <h3 class="group-head"><span class="dot" style="--c: {{ cat_color(key) }}"></span>{{ cat_label(key) }}</h3>
+  <div class="menu-items">
+    {% for it in items %}
+    <div class="menu-item">
+      <span class="card-img">{% if it.image %}<img src="/images/{{ it.image }}" alt="" loading="lazy">{% else %}<img src="/static/bottle.svg" alt="" class="ph">{% endif %}</span>
+      <div>
+        <b>{{ it.name }}</b>
+        <div class="muted small">{{ [it.country, ('%g'|format(it.abv) ~ '%') if it.abv else '']|select|join(' · ') }}</div>
+        {% if it.description %}<p class="small menu-desc">{{ it.description }}</p>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">De bar is nog leeg.</p>
+  {% endfor %}
+</section>
+<p class="muted small center">Gemaakt met BarManager</p>
+{% endblock %}

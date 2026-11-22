@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ c.name }}{% endblock %}
+{% block content %}
+{% set q = ('?loc=' ~ loc if loc else '') %}
+<div class="pagehead">
+  <div>
+    <div class="crumbs"><a href="/cocktails{{ q }}">Cocktails</a> /</div>
+    <h1>{{ c.name }}</h1>
+    <div class="card-meta">
+      {% if c.iba %}<span class="badge" style="--c: #b5651d">IBA {{ c.iba }}</span>{% endif %}
+      {% if c.category %}<span>{{ c.category }}</span>{% endif %}
+      {% if c.glass %}<span>{{ c.glass }}</span>{% endif %}
+      {% if c.alcoholic == 'Non alcoholic' %}<span>alcoholvrij</span>{% endif %}
+    </div>
+  </div>
+  <div class="actions"><a class="button secondary" href="/cocktails{{ q }}">Terug</a></div>
+</div>
+
+{% if missing %}
+<div class="flash warn">Je mist nog: <b>{{ missing|map(attribute='name')|join(', ') }}</b>{% if location %} in {{ location.name }}{% endif %}.</div>
+{% else %}
+<div class="flash ok">Dit kun je maken met wat er{% if location %} in {{ location.name }}{% endif %} staat.</div>
+{% endif %}
+
+<div class="product-layout">
+  <div class="photos panel">
+    {% if c.image %}<img class="photo-main cocktail-photo" src="/images/{{ c.image }}" alt="">
+    {% else %}<img class="photo-main ph" src="/static/bottle.svg" alt="">{% endif %}
+  </div>
+  <div class="stack-lg">
+    <div class="panel">
+      <h2 class="flush">Ingrediënten</h2>
+      <table class="ingredients">
+        {% for r in rows %}
+        <tr class="st-{{ r.state }}">
+          <td class="amount" {% if r.measure != r.measure_orig %}title="{{ r.measure_orig }}"{% endif %}>{{ r.measure }}</td>
+          <td>
+            <b>{{ r.name }}</b>
+            <div class="small">
+              {% if r.state == 'ok' %}<span class="okc">✓ {{ r.products|map(attribute='name')|join(', ') }}</span>
+              {% elif r.state == 'vervanger' %}<span class="warn">≈ vervanger: {{ r.products|map(attribute='name')|join(', ') }}</span>
+              {% elif r.state == 'altijd' %}<span class="muted">✓ heb je altijd in huis</span>
+              {% elif r.state == 'basis' %}<span class="muted">{{ 'sap, frisdrank of siroop' if r.kind == 'mixer' else 'vers / basis' }}</span>
+              {% else %}<span class="bad">✕ niet op voorraad</span>{% endif %}
+            </div>
+          </td>
+          <td class="right">
+            {% if r.kind != 'basis' %}
+            <a class="small" href="/cocktails-ingredient?naam={{ r.name|urlencode }}{{ '&loc=' ~ loc if loc }}&back={{ ('/cocktails/' ~ c.id ~ q)|urlencode }}">koppelen</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+      <p class="muted small">Hoeveelheden omgerekend naar cl (1 oz ≈ 3 cl, 1 shot ≈ 4 cl); houd je muis op een hoeveelheid voor het origineel.</p>
+    </div>
+
+    {% if c.instructions %}
+    <div class="panel">
+      <h2 class="flush">Bereiding</h2>
+      <p class="instructions" lang="en">{{ c.instructions }}</p>
+    </div>
+    {% endif %}
+
+    {% if missing %}
+    <form method="post" action="/cocktails/{{ c.id }}/op-lijst" class="row right-row">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="back" value="/cocktails/{{ c.id }}{{ q }}">
+      {% for r in missing %}<input type="hidden" name="naam" value="{{ r.name }}">{% endfor %}
+      <button class="secondary small">Ontbrekende op de boodschappenlijst</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

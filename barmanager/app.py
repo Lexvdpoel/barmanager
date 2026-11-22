@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
 
-from . import __version__, api, web
+from . import __version__, api, pages, web
 from .auth import LoginRequired, current_user
 from .config import Settings
 from .db import Database
@@ -17,6 +17,7 @@ from .lookup import Lookup
 from .security import hash_password
 from .ai import AiWorker, Enricher
 from .service import LookupWorker
+from .cocktails import CocktailSync
 
 log = logging.getLogger("barmanager")
 
@@ -54,6 +55,8 @@ def create_app(settings: Settings | None = None, lookup: Lookup | None = None,
         app.state.worker.start()
         app.state.ai = AiWorker(db, settings, enricher or Enricher(settings), app.state.lookup)
         app.state.ai.start()
+        app.state.cocktail_sync = CocktailSync(db, settings, app.state.lookup)
+        app.state.cocktail_sync.start()
         if app.state.ai.enricher.enabled:
             log.info("AI-aanvulling via %s (%s).", settings.ollama_url, settings.ollama_model)
         if not settings.brave_api_key:
@@ -63,6 +66,7 @@ def create_app(settings: Settings | None = None, lookup: Lookup | None = None,
         finally:
             app.state.worker.stop()
             app.state.ai.stop()
+            app.state.cocktail_sync.stop()
             db.close()
 
     app = FastAPI(title="BarManager", version=__version__, lifespan=lifespan,
@@ -72,6 +76,7 @@ def create_app(settings: Settings | None = None, lookup: Lookup | None = None,
     app.mount("/images", StaticFiles(directory=settings.image_dir), name="images")
     app.include_router(api.router)
     app.include_router(web.router)
+    app.include_router(pages.router)
 
     @app.exception_handler(LoginRequired)
     async def _login_required(request: Request, exc):

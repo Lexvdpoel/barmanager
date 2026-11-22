@@ -11,6 +11,20 @@ Drankvoorraad bijhouden per locatie door barcodes te scannen.
   likeur, bitter, wijn, bier, frisdrank & mixers, …). De voorraad staat per categorie gegroepeerd en
   je kunt filteren op categorie, zoeken, en filteren op "bijna op" / "op".
 - Per product kun je een minimumvoorraad instellen; de voorraad exporteren als CSV.
+- **Waarde**: prijs per fles, aankoopdatum en winkel per locatie; de totale waarde staat bij de locatie.
+- **Cocktails**: alle recepten van [TheCocktailDB](https://www.thecocktaildb.com) (ruim 600, wekelijks
+  bijgewerkt) en per locatie wat je nu kunt maken, wat je met één extra fles kunt maken en welke fles
+  de meeste cocktails oplevert. Flessen worden op naam, land en categorie aan ingrediënten gekoppeld
+  (Cointreau = triple sec, een Schotse whisky = scotch, een andere whisky als vervanger voor bourbon);
+  een niet herkende fles kun je zelf aan een ingrediënt koppelen.
+- **Flesinhoud bijhouden** (per locatie aan/uit): hoe vol de geopende fles is, hoe lang hij open
+  staat en of hij nog goed is (cream liqueurs, vermout, wijn), plus **statistieken** over wat er
+  gedronken en gekocht wordt.
+- **Boodschappenlijst**: flessen onder het minimum, en bij flesinhoud bijhouden ook lege en bijna lege
+  flessen, komen er vanzelf op; staat het bijhouden uit, dan zet je een fles er met een knop op.
+  Inscannen haalt hem er weer af.
+- **Barkaart voor gasten**: een openbare pagina (met QR-code) met wat er in de bar staat en welke
+  cocktails je kunt maken, zonder aantallen of prijzen. Uit te zetten of te vernieuwen per locatie.
 
 ```
 telefoon/browser ──https──► reverse proxy ──► BarManager (FastAPI + SQLite, /config)

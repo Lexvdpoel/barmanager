@@ -6,14 +6,28 @@
   <div>
     <div class="crumbs"><a href="/locaties">Locaties</a> /</div>
     <h1>{{ loc.name }}</h1>
-    <div class="muted small">{{ total.b }} flessen · {{ total.n }} producten</div>
+    <div class="muted small">{{ total.b }} flessen · {{ total.n }} producten{% if value %} · waarde {{ value|euro }}{% endif %}</div>
   </div>
   <div class="actions">
     <a class="button" href="/locaties/{{ loc.id }}/scannen">Scannen</a>
+    {% if loc.track_levels %}<a class="button secondary" href="/locaties/{{ loc.id }}/statistieken">Statistieken</a>{% endif %}
     <a class="button secondary" href="/locaties/{{ loc.id }}/export.csv">CSV</a>
     <a class="button secondary" href="/locaties/{{ loc.id }}/instellingen">Instellingen</a>
   </div>
 </div>
+
+{% if alerts %}
+<div class="flash warn alerts">
+  <b>Geopende flessen om op te letten</b>
+  <ul>
+    {% for it, info in alerts %}
+    <li><a href="/producten/{{ it.id }}?loc={{ loc.id }}">{{ it.name or it.barcode }}</a>:
+      {% if info.state == 'over' %}{{ info.days }} dagen open, houdbaar ±{{ info.limit }} dagen na openen
+      {% else %}nog ±{{ info.left }} dagen goed (open sinds {{ info.days }} dagen){% endif %}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
 
 <form method="get" class="filters" id="filters">
   <input type="search" name="q" value="{{ q }}" placeholder="Zoek op naam, merk of barcode…" autocomplete="off">

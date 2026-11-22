@@ -1,5 +1,6 @@
 import csv
 import io
+import re
 import time
 from pathlib import Path
 from urllib.parse import urlencode
@@ -21,7 +22,19 @@ templates.env.globals.update(
     cat_label=categories.label,
     cat_color=lambda k: categories.COLORS.get(k, categories.COLORS["overig"]),
     stock_state=service.stock_state,
+    open_info=service.open_info,
+    LEVELS=service.LEVELS,
 )
+
+
+def _euro(v) -> str:
+    if v is None:
+        return ""
+    s = f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return "€ " + s
+
+
+templates.env.filters["euro"] = _euro
 limiter = LoginLimiter()
 
 SORTS = {"categorie": "Categorie", "naam": "Naam", "aantal": "Aantal", "recent": "Laatst gewijzigd"}
@@ -147,7 +160,8 @@ def locations(request: Request, user=Depends(require_user)):
                SUM(CASE WHEN quantity > 0 AND min_quantity > 0 AND quantity <= min_quantity
                    THEN 1 ELSE 0 END) AS low
         FROM inventory GROUP BY location_id""")}
-    return render(request, "locations.html", locations=locs, stats=stats)
+    values = {l["id"]: service.location_value(db, l["id"]) for l in locs}
+    return render(request, "locations.html", locations=locs, stats=stats, values=values)
 
 
 @router.post("/locaties")
@@ -223,9 +237,18 @@ def location_page(request: Request, lid: int, user=Depends(require_user), q: str
         params = {k: v for k, v in params.items() if v and not (k == "sort" and v == "categorie")}
         return f"/locaties/{lid}" + ("?" + urlencode(params) if params else "")
 
+    db = db_of(request)
+    alerts = []
+    if loc["track_levels"]:
+        for it in service.inventory_rows(db, lid):
+            info = service.open_info(it) if it["quantity"] > 0 else None
+            if info and info["state"] != "ok":
+                alerts.append((it, info))
+        alerts.sort(key=lambda a: a[1]["left"])
     return render(request, "location.html", loc=loc, items=items, groups=groups, counts=counts,
                   q=q, cat=cat, staat=staat, sort=sort, SORTS=SORTS, STATES=STATES,
-                  url_with=url_with, total=total, manage=can_manage(loc, user))
+                  url_with=url_with, total=total, manage=can_manage(loc, user),
+                  value=service.location_value(db, lid), alerts=alerts)
 
 
 @router.get("/locaties/{lid}/scannen", response_class=HTMLResponse)
@@ -241,12 +264,14 @@ def export_csv(request: Request, lid: int, user=Depends(require_user)):
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";")
     w.writerow(["categorie", "ook_in", "naam", "merk", "barcode", "inhoud_ml", "alcohol_pct", "aantal",
-                "minimum", "notities"])
+                "minimum", "notities", "prijs_per_fles", "gekocht_op", "winkel", "waarde"])
     for it in items:
         w.writerow([categories.label(it["category"]), ", ".join(categories.label(c) for c in it["cats"][1:]),
                     it["name"], it["brand"], it["barcode"],
                     it["volume_ml"] or "", it["abv"] if it["abv"] is not None else "",
-                    it["quantity"], it["min_quantity"], it["notes"]])
+                    it["quantity"], it["min_quantity"], it["notes"],
+                    f"{it['price']:.2f}".replace(".", ",") if it["price"] is not None else "", it["bought_at"],
+                    it["shop"], f"{service.item_value(it, bool(loc['track_levels'])):.2f}".replace(".", ",")])
     fname = "".join(ch if ch.isalnum() else "-" for ch in loc["name"]).strip("-") or "voorraad"
     return Response("﻿" + buf.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{fname}.csv"'})
@@ -264,7 +289,8 @@ def adjust_item(request: Request, lid: int, pid: int, user=Depends(require_user)
 
 @router.post("/locaties/{lid}/items/{pid}")
 def update_item(request: Request, lid: int, pid: int, user=Depends(require_user), csrf: str = Form(""),
-                quantity: str = Form("0"), min_quantity: str = Form("0"), notes: str = Form("")):
+                quantity: str = Form("0"), min_quantity: str = Form("0"), notes: str = Form(""),
+                price: str = Form(""), bought_at: str = Form(""), shop: str = Form("")):
     check_csrf(request, csrf)
     get_location(request, lid, user)
     get_product(request, pid)
@@ -273,8 +299,12 @@ def update_item(request: Request, lid: int, pid: int, user=Depends(require_user)
     current = row["quantity"] if row else 0
     target = _int(quantity, current, 0, 100000)
     service.adjust(db, lid, pid, target - current, user["id"], "geteld")
-    db.run("UPDATE inventory SET min_quantity=?, notes=? WHERE location_id=? AND product_id=?",
-           _int(min_quantity, 0, 0, 100000), notes.strip()[:500], lid, pid)
+    price_v = _float(price.replace("€", "")) if price.strip() else None
+    price_v = round(price_v, 2) if price_v is not None and 0 <= price_v < 100000 else None
+    bought = bought_at.strip()[:10] if re.fullmatch(r"\d{4}-\d{2}-\d{2}", bought_at.strip()) else ""
+    db.run("UPDATE inventory SET min_quantity=?, notes=?, price=?, bought_at=?, shop=? "
+           "WHERE location_id=? AND product_id=?",
+           _int(min_quantity, 0, 0, 100000), notes.strip()[:500], price_v, bought, shop.strip()[:80], lid, pid)
     return redirect(f"/producten/{pid}?loc={lid}", msg="Voorraad opgeslagen.")
 
 
@@ -293,8 +323,9 @@ def location_settings(request: Request, lid: int, user=Depends(require_user)):
     members = db.all("SELECT u.id, u.username FROM location_members m JOIN users u ON u.id=m.user_id "
                      "WHERE m.location_id=? ORDER BY u.username", lid)
     owner = db.one("SELECT username FROM users WHERE id=?", loc["owner_id"])
+    menu = str(request.base_url).rstrip("/") + f"/kaart/{loc['menu_token']}" if loc["menu_token"] else ""
     return render(request, "location_settings.html", loc=loc, members=members,
-                  owner=owner["username"] if owner else "?", manage=can_manage(loc, user))
+                  owner=owner["username"] if owner else "?", manage=can_manage(loc, user), menu_url=menu)
 
 
 def _managed_location(request: Request, lid: int, user, csrf: str):
@@ -448,7 +479,16 @@ def product_page(request: Request, pid: int, user=Depends(require_user), loc: in
         history = db.all("""SELECT m.*, u.username FROM movements m LEFT JOIN users u ON u.id=m.user_id
                             WHERE m.location_id=? AND m.product_id=? ORDER BY m.created_at DESC LIMIT 15""",
                          loc, pid)
+    from . import bar, cocktails
+    keys = cocktails.ingredients_for_product(db, p) if p["name"] else set()
+    n_cocktails = len({r["cocktail_id"] for r in db.all("SELECT cocktail_id, name FROM cocktail_ingredients")
+                       if cocktails.norm(r["name"]) in keys}) if keys else 0
+    track = bool(location and location["track_levels"])
     return render(request, "product.html", p=p, photos=service.product_images(db, pid),
+                  track=track, open=service.open_info(dict(item) | dict(p)) if track and item else None,
+                  on_list=bar.on_list(db, location["id"] if location else None, pid),
+                  n_cocktails=n_cocktails, default_shelf=cocktails.default_shelf_days(p),
+                  item_value=service.item_value(dict(item), track) if item else 0,
                   cats=service.product_categories(p),
                   can_delete=service.can_delete_product(db, user, pid),
                   location=location, item=item, history=history,
@@ -465,7 +505,8 @@ def _product_url(pid: int, loc: str | int | None) -> str:
 def save_product(request: Request, pid: int, user=Depends(require_user), csrf: str = Form(""),
                  loc: str = Form(""), name: str = Form(""), brand: str = Form(""),
                  category: str = Form("overig"), extra: list[str] = Form([]), volume_ml: str = Form(""),
-                 abv: str = Form(""), description: str = Form(""), country: str = Form("")):
+                 abv: str = Form(""), description: str = Form(""), country: str = Form(""),
+                 shelf_days: str = Form("-")):
     check_csrf(request, csrf)
     p = get_product(request, pid)
     db = db_of(request)
@@ -490,6 +531,9 @@ def save_product(request: Request, pid: int, user=Depends(require_user), csrf: s
               updated_at=? WHERE id=?""",
            name.strip()[:150], new["brand"], category, extra_s, locked, vol_v, abv_v, new["country"], ai_fields,
            new["description"], time.time(), pid)
+    if shelf_days != "-":
+        db.run("UPDATE products SET shelf_days=? WHERE id=?",
+               _int(shelf_days, None, 0, 3650) if shelf_days.strip() else None, pid)
     if not locked and category == categories.DEFAULT:
         service.reclassify(db, pid)
         if db.one("SELECT category FROM products WHERE id=?", pid)["category"] == categories.DEFAULT:

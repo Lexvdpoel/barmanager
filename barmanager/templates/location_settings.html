@@ -18,6 +18,59 @@
 </form>
 {% endif %}
 
+<h2>Flesinhoud bijhouden</h2>
+<form method="post" action="/locaties/{{ loc.id }}/bijhouden" class="panel stack">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label class="switch">
+    <input type="checkbox" name="aan" value="1" {{ 'checked' if loc.track_levels }} onchange="this.form.submit()">
+    <span><b>Geopende flessen en inhoud bijhouden</b><br>
+    <span class="muted small">Per fles zie je hoe vol hij nog is en hoe lang hij al open staat, met een waarschuwing
+      als iets niet lang houdbaar is (zoals Baileys of vermout). Bijna lege en lege flessen komen vanzelf op de
+      boodschappenlijst, en je krijgt statistieken over wat er gedronken wordt.
+      Staat dit uit, dan zet je flessen met een knop op de productpagina op de boodschappenlijst.</span></span>
+  </label>
+  <noscript><button class="secondary">Opslaan</button></noscript>
+</form>
+
+<h2 id="barkaart">Barkaart voor gasten</h2>
+<div class="panel stack" id="barkaart-panel">
+  {% if loc.menu_token %}
+  <p>Gasten zien via deze link wat er in de bar staat en welke cocktails je kunt maken. Zonder inloggen,
+    zonder aantallen of prijzen.</p>
+  <div class="menu-share">
+    <img src="/locaties/{{ loc.id }}/barkaart.svg" alt="QR-code naar de barkaart" width="180" height="180" class="qr">
+    <div class="stack">
+      <input readonly value="{{ menu_url }}" onclick="this.select()" aria-label="Link naar de barkaart">
+      <div class="row">
+        <a class="button secondary" href="{{ menu_url }}" target="_blank" rel="noopener">Bekijken</a>
+        <button type="button" class="secondary" onclick="document.body.classList.add('print-qr'); window.print(); document.body.classList.remove('print-qr')">QR afdrukken</button>
+      </div>
+      {% if manage %}
+      <div class="row">
+        <form method="post" action="/locaties/{{ loc.id }}/barkaart" class="inline" data-confirm="Nieuwe link maken? De oude link en QR-code werken dan niet meer.">
+          <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="actie" value="nieuw">
+          <button class="ghost small">Nieuwe link</button>
+        </form>
+        <form method="post" action="/locaties/{{ loc.id }}/barkaart" class="inline">
+          <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="actie" value="uit">
+          <button class="ghost small danger">Barkaart uitzetten</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <p class="muted">Maak een openbare pagina met wat er in de bar staat en welke cocktails je kunt maken, met een
+    QR-code om op de bar te zetten. Zonder aantallen of prijzen, en je kunt hem altijd weer uitzetten.</p>
+  {% if manage %}
+  <form method="post" action="/locaties/{{ loc.id }}/barkaart">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="actie" value="aan">
+    <button>Barkaart aanzetten</button>
+  </form>
+  {% else %}<p class="muted small">Alleen de eigenaar kan de barkaart aanzetten.</p>{% endif %}
+  {% endif %}
+</div>
+
 <h2>Toegang</h2>
 <div class="panel stack">
   <p>Eigenaar: <b>{{ owner }}</b></p>

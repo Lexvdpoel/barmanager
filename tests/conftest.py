@@ -87,8 +87,47 @@ def fake_handler(request: httpx.Request) -> httpx.Response:
                  "content": "Glenfarclas 12 is a Speyside single malt from Scotland, sherry cask matured."},
                 {"title": "Weather in Speyside", "url": "https://w.example/w", "content": "Rain."}]})
         return httpx.Response(200, json={"results": []})
+    if url.startswith("https://www.thecocktaildb.com/api/"):
+        return cocktaildb(request)
     if url.startswith("https://images.example.com/"):
         return httpx.Response(200, content=png_bytes(), headers={"content-type": "image/png"})
+    return httpx.Response(404)
+
+
+def drink(i, name, ings, iba="", alcoholic="Alcoholic"):
+    d = {"idDrink": i, "strDrink": name, "strCategory": "Cocktail", "strAlcoholic": alcoholic,
+         "strGlass": "Cocktail glass", "strIBA": iba, "strInstructions": f"Make a {name}.",
+         "strDrinkThumb": f"https://images.example.com/drink/{i}.jpg"}
+    for n, (ing, measure) in enumerate(ings, 1):
+        d[f"strIngredient{n}"], d[f"strMeasure{n}"] = ing, measure
+    return d
+
+
+DRINKS = {
+    "1": drink("1", "Margarita", [("Tequila", "1 1/2 oz"), ("Triple sec", "1/2 oz"), ("Lime juice", "1 oz"),
+                                  ("Salt", "")], iba="Contemporary Classics"),
+    "2": drink("2", "Mojito", [("Light rum", "2-3 oz"), ("Lime", "Juice of 1"), ("Sugar", "2 tsp"),
+                               ("Mint", "2-4"), ("Soda water", "")]),
+    "3": drink("3", "Gin And Tonic", [("Gin", "2 oz"), ("Tonic water", "5 oz"), ("Lime", "")]),
+    "4": drink("4", "Rob Roy", [("Scotch", "1 1/2 oz"), ("Sweet Vermouth", "3/4 oz"), ("Angostura bitters", "dash")]),
+}
+
+
+def cocktaildb(request: httpx.Request) -> httpx.Response:
+    path, params = request.url.path, request.url.params
+    if path.endswith("/search.php"):
+        f = params.get("f", "")
+        hits = [d for d in DRINKS.values() if d["strDrink"].lower().startswith(f) and d["idDrink"] != "3"]
+        return httpx.Response(200, json={"drinks": hits or None})
+    if path.endswith("/list.php"):
+        if params.get("c") == "list":
+            return httpx.Response(200, json={"drinks": [{"strCategory": "Cocktail"}]})
+        return httpx.Response(200, json={"drinks": []})
+    if path.endswith("/filter.php"):
+        return httpx.Response(200, json={"drinks": [{"idDrink": i, "strDrink": d["strDrink"]} for i, d in DRINKS.items()]})
+    if path.endswith("/lookup.php"):
+        d = DRINKS.get(params.get("i", ""))
+        return httpx.Response(200, json={"drinks": [d] if d else None})
     return httpx.Response(404)
 
 

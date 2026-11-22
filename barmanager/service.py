@@ -186,11 +186,13 @@ def product_categories(p) -> list[str]:
 # ---- inventory ----------------------------------------------------------------------
 def adjust(db: Database, location_id: int, product_id: int, delta: int, user_id: int | None,
            reason: str = "") -> int:
-    """Change the stock of a product at a location. Never goes below 0. Returns new quantity."""
+    """Change the stock of a product at a location. Never goes below 0. Returns new quantity.
+
+    More bottles: the product leaves the shopping list. Fewer bottles at a location that tracks
+    fill levels: the bottles count as finished (the open one first) for the statistics."""
     now = time.time()
     with db.tx():
-        row = db.one("SELECT quantity FROM inventory WHERE location_id=? AND product_id=?",
-                     location_id, product_id)
+        row = db.one("SELECT * FROM inventory WHERE location_id=? AND product_id=?", location_id, product_id)
         old = row["quantity"] if row else 0
         new = max(0, old + delta)
         if row:
@@ -202,12 +204,112 @@ def adjust(db: Database, location_id: int, product_id: int, delta: int, user_id:
         if new != old:
             db.run("INSERT INTO movements(location_id, product_id, user_id, delta, reason, created_at) "
                    "VALUES (?,?,?,?,?,?)", location_id, product_id, user_id, new - old, reason, now)
+        if new > old:
+            db.run("DELETE FROM shopping_items WHERE product_id=? AND (location_id=? OR location_id IS NULL)",
+                   product_id, location_id)
+        elif new < old and row:
+            _finish_bottles(db, row, old - new, new, user_id, reason, now)
     return new
+
+
+DEFAULT_VOLUME_ML = 700
+LEVELS = [(100, "Vol"), (75, "¾"), (50, "½"), (25, "¼"), (10, "Bijna leeg")]
+
+
+def tracks_levels(db: Database, location_id: int) -> bool:
+    r = db.one("SELECT track_levels FROM locations WHERE id=?", location_id)
+    return bool(r and r["track_levels"])
+
+
+def _volume(db: Database, product_id: int) -> float:
+    r = db.one("SELECT volume_ml FROM products WHERE id=?", product_id)
+    return float(r["volume_ml"] or DEFAULT_VOLUME_ML) if r else DEFAULT_VOLUME_ML
+
+
+def _finish_bottles(db: Database, row, n: int, left: int, user_id, reason: str, now: float) -> None:
+    lid, pid, level = row["location_id"], row["product_id"], row["open_level"]
+    counted = reason == "geteld"          # a stock count is a correction, not drinking
+    if level is not None and (not counted or left == 0):
+        db.run("UPDATE inventory SET open_level=NULL, opened_at=NULL WHERE id=?", row["id"])
+    if counted or not tracks_levels(db, lid):
+        return
+    pct = (level if level is not None else 100) + 100 * (n - 1)
+    vol = _volume(db, pid)
+    db.run("INSERT INTO level_log(location_id, product_id, user_id, event, level_before, level_after, bottles, "
+           "ml, value, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)", lid, pid, user_id, "leeg", level, 0, n,
+           vol * pct / 100, (row["price"] or 0) * pct / 100, now)
+
+
+def set_level(db: Database, location_id: int, product_id: int, level: int | None, user_id: int | None) -> str:
+    """Open bottle: set how full it still is (100..1), None = still closed, 0 = finished."""
+    row = db.one("SELECT * FROM inventory WHERE location_id=? AND product_id=?", location_id, product_id)
+    if not row or row["quantity"] <= 0:
+        return "Er staat geen fles van dit product op deze locatie."
+    if level is not None and level <= 0:
+        adjust(db, location_id, product_id, -1, user_id, "leeg")
+        return "Fles is op; voorraad één minder."
+    now = time.time()
+    if level is None:
+        db.run("UPDATE inventory SET open_level=NULL, opened_at=NULL WHERE id=?", row["id"])
+        return "Fles staat weer als dicht."
+    level = max(1, min(100, int(level)))
+    before = row["open_level"]
+    poured = max(0, (100 if before is None else before) - level)
+    vol = _volume(db, product_id)
+    with db.tx():
+        db.run("UPDATE inventory SET open_level=?, opened_at=COALESCE(opened_at, ?) WHERE id=?",
+               level, now, row["id"])
+        db.run("INSERT INTO level_log(location_id, product_id, user_id, event, level_before, level_after, bottles, "
+               "ml, value, created_at) VALUES (?,?,?,?,?,?,0,?,?,?)", location_id, product_id, user_id,
+               "open" if before is None else "niveau", before, level, vol * poured / 100,
+               (row["price"] or 0) * poured / 100, now)
+    return "Fles geopend." if before is None else "Inhoud bijgewerkt."
+
+
+def shelf_days(p) -> int | None:
+    from .cocktails import default_shelf_days
+    if p["shelf_days"] is not None:
+        return p["shelf_days"] or None       # 0 = keeps forever
+    return default_shelf_days(p)
+
+
+def open_info(item: dict, now: float | None = None) -> dict | None:
+    """For an item with an open bottle: days open, shelf life and whether it is past it."""
+    if item.get("open_level") is None:
+        return None
+    now = now or time.time()
+    days = int((now - (item.get("opened_at") or now)) // 86400)
+    limit = shelf_days(item)
+    state = "ok"
+    if limit:
+        if days > limit:
+            state = "over"
+        elif days >= limit * 0.8:
+            state = "bijna"
+    return {"level": item["open_level"], "days": days, "limit": limit, "state": state,
+            "left": limit - days if limit else None}
+
+
+def item_value(item: dict, track: bool) -> float:
+    if not item.get("price"):
+        return 0.0
+    bottles = item["quantity"]
+    if track and item.get("open_level") is not None and bottles > 0:
+        bottles -= 1 - item["open_level"] / 100
+    return round(item["price"] * max(0, bottles), 2)
+
+
+def location_value(db: Database, location_id: int) -> float:
+    track = tracks_levels(db, location_id)
+    rows = db.all("SELECT quantity, open_level, price FROM inventory WHERE location_id=? AND price IS NOT NULL",
+                  location_id)
+    return round(sum(item_value(dict(r), track) for r in rows), 2)
 
 
 def inventory_rows(db: Database, location_id: int) -> list[dict]:
     rows = db.all("""
         SELECT p.*, i.quantity, i.min_quantity, i.notes, i.updated_at AS item_updated,
+               i.open_level, i.opened_at, i.price, i.bought_at, i.shop, i.location_id,
                (SELECT filename FROM product_images pi WHERE pi.product_id = p.id
                 ORDER BY position, id LIMIT 1) AS image
         FROM inventory i JOIN products p ON p.id = i.product_id

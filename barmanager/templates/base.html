@@ -17,6 +17,8 @@
     {% set path = request.url.path %}
     <a href="/locaties" class="{{ 'on' if path.startswith('/locaties') or (path.startswith('/producten/') and request.query_params.get('loc')) }}">Locaties</a>
     <a href="/producten" class="{{ 'on' if path == '/producten' or (path.startswith('/producten/') and not request.query_params.get('loc')) }}">Producten</a>
+    <a href="/cocktails" class="{{ 'on' if path.startswith('/cocktails') }}">Cocktails</a>
+    <a href="/boodschappen" class="{{ 'on' if path.startswith('/boodschappen') }}">Boodschappen</a>
     {% if user.is_admin %}<a href="/gebruikers" class="{{ 'on' if path.startswith('/gebruikers') }}">Gebruikers</a>{% endif %}
     <a href="/account" class="{{ 'on' if path.startswith('/account') }}">{{ user.username }}</a>
   </nav>

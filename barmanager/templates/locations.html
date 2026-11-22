@@ -17,6 +17,7 @@
       <span><b>{{ s.products if s else 0 }}</b> producten</span>
       {% if s and s.low %}<span class="warn"><b>{{ s.low }}</b> bijna op</span>{% endif %}
       {% if s and s.empty %}<span class="bad"><b>{{ s.empty }}</b> op</span>{% endif %}
+      {% if values.get(l.id) %}<span><b>{{ values[l.id]|euro }}</b> waarde</span>{% endif %}
     </div>
     {% if l.owner_id != user.id %}<div class="muted small">van {{ l.owner }}</div>{% endif %}
   </a>
