@@ -61,3 +61,10 @@ def test_multi(name, brand, expected):
 
 def test_generic_tags_no_second_category():
     assert classify_all(tags=["en:eaux-de-vie", "en:whisky", "en:scotch-whisky"]) == ["whisky"]
+
+
+def test_vermouth_is_not_port():
+    from barmanager import categories
+    tags = ["en:alcoholic-beverages", "en:wines", "en:fortified-wines", "en:vermouths"]
+    assert categories.classify_all(tags, ["Martini Bianco"], "Martini")[0] == "aperitief"
+    assert categories.classify(texts=["Taylor's Fine Ruby Port"]) == "port"

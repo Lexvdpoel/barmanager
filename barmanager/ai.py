@@ -215,9 +215,35 @@ def clean_answer(a: dict) -> dict:
             and c not in (cat, categories.DEFAULT)] if cat == "likeur" else []
     abv = a.get("abv")
     abv = float(abv) if isinstance(abv, (int, float)) and not isinstance(abv, bool) and 0.5 <= abv <= 80 else None
-    return {"brand": text("brand", 100), "country": text("country", 60), "category": cat, "abv": abv,
+    return {"brand": text("brand", 100), "country": country_en(text("country", 60)), "category": cat, "abv": abv,
             "also": list(dict.fromkeys(also))[:2], "description": tidy(text("description", 300)),
             "sure": bool(a.get("sure"))}
+
+
+# Small models sometimes answer with the country's own name ("norge", "Shqipëri").
+COUNTRY_EN = {
+    "norge": "Norway", "noreg": "Norway", "nederland": "Netherlands", "holland": "Netherlands",
+    "the netherlands": "Netherlands", "deutschland": "Germany", "duitsland": "Germany", "shqiperi": "Albania",
+    "shqiperia": "Albania", "espana": "Spain", "italia": "Italy", "eire": "Ireland", "sverige": "Sweden",
+    "danmark": "Denmark", "suomi": "Finland", "polska": "Poland", "hrvatska": "Croatia", "schweiz": "Switzerland",
+    "suisse": "Switzerland", "osterreich": "Austria", "mexico": "Mexico", "magyarorszag": "Hungary",
+    "cesko": "Czechia", "ceska republika": "Czechia", "belgie": "Belgium", "belgique": "Belgium",
+    "schotland": "Scotland", "ierland": "Ireland", "frankrijk": "France", "usa": "United States",
+    "us": "United States", "united states of america": "United States", "uk": "United Kingdom",
+    "hellas": "Greece", "ellada": "Greece", "portugal": "Portugal", "brasil": "Brazil", "nippon": "Japan",
+}
+
+
+def country_en(name: str) -> str:
+    key = categories.normalize(name)
+    if not key:
+        return ""
+    if key in COUNTRY_EN:
+        return COUNTRY_EN[key]
+    return name[:1].upper() + name[1:] if name.islower() else name
+
+
+NON_ALCOHOLIC = {"mixer", "sap", "siroop"}
 
 
 def abv_in(text: str, abv: float) -> bool:
@@ -248,7 +274,10 @@ def apply_answer(db: Database, product_id: int, ans: dict, source_text: str = ""
             filled.append("abv"); sets.append("abv=?"); args.append(ans["abv"])
     if not p["description"] and ans["description"]:
         filled.append("description"); sets.append("description=?"); args.append(ans["description"])
-    if not p["category_locked"] and p["category"] == categories.DEFAULT and ans["category"] != categories.DEFAULT:
+    # A drink with alcohol is never a soft drink, juice or syrup (Kesbeke Zure bom shot, 14.9%).
+    alcoholic = (p["abv"] or ans.get("abv") or 0) >= 1.5
+    if not p["category_locked"] and p["category"] == categories.DEFAULT and ans["category"] != categories.DEFAULT \
+            and not (alcoholic and ans["category"] in NON_ALCOHOLIC):
         filled.append("category"); sets.append("category=?, extra_categories=?")
         args += [ans["category"], ",".join(ans["also"])]
     old = [f for f in (p["ai_fields"] or "").split(",") if f]

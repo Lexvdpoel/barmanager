@@ -66,6 +66,8 @@ _RULE_WORDS: list[tuple[str, list[str]]] = [
     ("bubbels", ["champagne", "champagnes", "prosecco", "proseccos", "cava", "cremant",
                  "sparkling wine", "sparkling wines", "mousserende wijn", "schuimwijn", "sekt",
                  "spumante", "asti", "vin mousseux", "vins mousseux", "franciacorta"]),
+    # Vermouth is a fortified wine too (Open Food Facts tags it so): it must win from port.
+    ("aperitief", ["vermouth", "vermouths", "vermout", "wermut", "vermut", "vermuth", "quinquina"]),
     ("port", ["port wine", "port wines", "porto", "portwijn", "port", "tawny", "sherry", "sherries",
               "madeira", "marsala", "jerez", "fino", "oloroso", "fortified wine", "fortified wines",
               "versterkte wijn", "pedro ximenez"]),

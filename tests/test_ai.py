@@ -27,7 +27,7 @@ def ollama_handler(request: httpx.Request) -> httpx.Response:
             ans = {"brand": "", "country": "", "category": "likeur", "also": [], "description": "",
                    "sure": False}
         else:
-            ans = {"brand": "Glenfarclas", "country": "Schotland", "category": "whisky", "also": [],
+            ans = {"brand": "Glenfarclas", "country": "Scotland", "category": "whisky", "also": [],
                    "description": "Single malt Scotch whisky uit de Speyside.", "sure": True}
         return httpx.Response(200, json={"message": {"role": "assistant", "content": json.dumps(ans)}})
     return httpx.Response(404)
@@ -53,7 +53,7 @@ def test_fills_only_empty_fields(settings):
     p = db.one("SELECT * FROM products WHERE id=?", a)
     assert set(filled) == {"brand", "country", "description", "category"}
     assert p["abv"] == 40
-    assert p["country"] == "Schotland" and p["category"] == "whisky"
+    assert p["country"] == "Scotland" and p["category"] == "whisky"
     assert p["ai_for"] == p["name"] and "AI" in p["source"]
     assert a not in [r["id"] for r in worker.todo()]
 
@@ -73,9 +73,9 @@ def test_locked_category_is_kept(settings):
 
 
 def test_clean_answer():
-    c = clean_answer({"brand": "onbekend", "country": " Ierland ", "category": "nope",
+    c = clean_answer({"brand": "onbekend", "country": " Ireland ", "category": "nope",
                       "also": ["whisky", "nope", "whisky"], "description": "x", "sure": 1})
-    assert c["brand"] == "" and c["country"] == "Ierland"
+    assert c["brand"] == "" and c["country"] == "Ireland"
     assert c["category"] == "overig" and c["also"] == [] and c["sure"] is True
     assert clean_answer({"category": "likeur", "also": ["whisky", "whisky"]})["also"] == ["whisky"]
 
@@ -86,19 +86,19 @@ def test_user_edit_removes_ai_mark(admin, settings):
     now = time.time()
     pid = db.run("INSERT INTO products(barcode, name, created_at, updated_at, lookup_status) "
                  "VALUES ('9', 'Merk Test', ?, ?, 'manual')", now, now)
-    apply_answer(db, pid, clean_answer({"brand": "Merk", "country": "Frankrijk", "category": "brandy",
+    apply_answer(db, pid, clean_answer({"brand": "Merk", "country": "France", "category": "brandy",
                                         "also": [], "description": "Cognac.", "sure": True}))
     page = c.get(f"/producten/{pid}").text
     assert page.count('class="ai-tag"') == 4
     c.post(f"/producten/{pid}", data={"csrf": csrf, "name": "Merk Test", "brand": "Ander merk", "category": "brandy",
-                                      "country": "Frankrijk", "abv": "40", "description": "Cognac."})
+                                      "country": "France", "abv": "40", "description": "Cognac."})
     p = db.one("SELECT * FROM products WHERE id=?", pid)
     assert p["brand"] == "Ander merk" and "brand" not in p["ai_fields"] and "country" in p["ai_fields"]
 
 
 def test_brand_must_come_from_name(settings):
     db, worker, a, _ = setup(settings)
-    filled = apply_answer(db, a, clean_answer({"brand": "Highland Park Distillery", "country": "Schotland",
+    filled = apply_answer(db, a, clean_answer({"brand": "Highland Park Distillery", "country": "Scotland",
                                                "category": "whisky", "description": "x", "sure": True}))
     assert "brand" not in filled and "country" in filled
 
@@ -157,3 +157,14 @@ def test_abv_only_when_in_sources_and_extra_categories(settings):
     assert "whisky" in p["extra_categories"] and "extra" in filled
     db.run("UPDATE products SET abv=NULL WHERE id=?", a)
     assert "abv" not in apply_answer(db, a, {**ans, "abv": 40.0}, "Southern Comfort 35% vol")
+
+
+def test_country_in_english_and_no_soft_drink_with_alcohol(settings):
+    from barmanager.ai import country_en
+    assert country_en("norge") == "Norway" and country_en("Shqipëri") == "Albania"
+    assert country_en("netherlands") == "Netherlands" and country_en("Scotland") == "Scotland"
+    db, worker, a, _ = setup(settings)
+    db.run("UPDATE products SET category='overig', abv=14.9, name='Kesbeke Zure bom shot' WHERE id=?", a)
+    ans = clean_answer({"brand": "", "country": "", "category": "mixer", "also": [], "description": "Sour shot.",
+                        "abv": 0, "sure": False})
+    assert "category" not in apply_answer(db, a, ans)
