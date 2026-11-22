@@ -140,3 +140,13 @@ section { padding: 96px 0; }
 @media (max-width: 720px) { .foot .wrap { grid-template-columns: 1fr; } }
 
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .btn, .btn:hover { transition: none; transform: none; } }
+
+/* feedback */
+.feedback { background: linear-gradient(180deg, #2a1e17 0%, var(--ink) 100%); color: #eadfce; text-align: center; }
+.feedback .label { justify-content: center; color: var(--amber); }
+.feedback .label::before { background: var(--amber); }
+.feedback h2 { max-width: 22ch; margin: 0 auto 22px; color: #fff; }
+.feedback h2 em { color: var(--amber); }
+.feedback p { max-width: 64ch; margin: 0 auto 14px; color: #d8cbbb; font-size: 18px; }
+.feedback p b { color: #fff; }
+.feedback .cta { justify-content: center; }
