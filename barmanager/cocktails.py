@@ -93,6 +93,7 @@ _DARK_RUM = ("dark", "black", "negra", "negro", "navy", "kraken", "myers's", "go
 _EAU_DE_VIE = ("raki", "rakia", "rakija", "rakiya", "grappa", "pisco", "eau de vie", "slivovitz", "sljivovica",
                "palinka", "tuica", "tsipouro", "zivania", "kirsch*", "obstler", "poire williams", "williams",
                "schnaps", "schnapps", "orujo", "marc", "chacha", "arak")
+_BLUE = ("blue", "blauw*", "bleu", "blu")
 _orange = ("triple sec", "cointreau", "grand marnier", "curacao", "orange liqueur", "sinaasappellikeur",
            "combier", "mandarine napoleon", "dry orange", "orange curacao")
 _vermouth = ("vermouth", "vermout", "wermut", "martini", "noilly prat", "dolin", "cinzano", "carpano",
@@ -164,10 +165,12 @@ SPECS.update({
     "apple brandy": D(["applejack", "calvados", "apple brandy", "appelbrandewijn"], sub_cats=["brandy"]),
     "pisco": D(["pisco"], sub_cats=["brandy"]),
     # orange liqueurs
-    "triple sec": D(_orange),
+    # Blue curacao tastes much the same but turns the drink blue and is sweeter: a substitute.
+    "triple sec": D(_orange, sub_words=_orange, not_words=_BLUE),
+    "orange liqueur": D(_orange, sub_words=_orange, not_words=_BLUE),
     "cointreau": D(["cointreau"], sub_words=_orange),
     "grand marnier": D(["grand marnier"], sub_words=_orange),
-    "orange curacao": D(["curacao"], sub_words=_orange),
+    "orange curacao": D(["curacao"], sub_words=_orange, not_words=_BLUE),
     "blue curacao": D(["blue curacao", "blauwe curacao", "curacao blue", "bols blue"], sub_words=_orange),
     # coffee, cream, nut
     "kahlua": D(["kahlua", "tia maria", "coffee liqueur", "koffielikeur", "mr black", "borghetti", "espresso liqueur"]),

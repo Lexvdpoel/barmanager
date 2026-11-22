@@ -258,3 +258,16 @@ def test_rakia_is_only_a_substitute_for_brandy(settings):
     add_product(db, "Skenderbeu Brandy", "brandy", 1, lid, country="Albania")
     m = cocktails.Matcher(db, cocktails.stock(db, [lid]))
     assert [p["name"] for p in m.resolve("Brandy").products] == ["Skenderbeu Brandy"]
+
+
+def test_blue_curacao_is_only_a_substitute_for_triple_sec(settings):
+    db = Database(settings.db_path)
+    db.run("INSERT INTO users(username, password_hash, created_at) VALUES ('a', 'x', 0)")
+    lid = db.run("INSERT INTO locations(name, owner_id, created_at) VALUES ('bar', 1, 0)")
+    add_product(db, "Blue Curaçao", "likeur", 1, lid)
+    m = cocktails.Matcher(db, cocktails.stock(db, [lid]))
+    assert m.resolve("Blue Curacao").state == "ok"
+    assert m.resolve("Triple sec").state == "vervanger" and m.resolve("Cointreau").state == "vervanger"
+    add_product(db, "Cointreau", "likeur", 1, lid)
+    m = cocktails.Matcher(db, cocktails.stock(db, [lid]))
+    assert [p["name"] for p in m.resolve("Triple sec").products] == ["Cointreau"]
