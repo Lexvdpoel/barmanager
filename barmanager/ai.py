@@ -52,7 +52,7 @@ SYSTEM = (
 
 
 CATEGORY_EN = {
-    "vodka": "vodka", "jenever": "Dutch genever", "likeur": "liqueur", "bitter": "herbal bitter / amaro",
+    "vodka": "vodka", "jenever": "Dutch genever", "akvavit": "aquavit / akevitt (Scandinavian caraway-dill spirit)", "likeur": "liqueur", "bitter": "herbal bitter / amaro",
     "aperitief": "aperitif, vermouth", "port": "port, sherry, fortified wine", "wijn": "wine",
     "bubbels": "sparkling wine, champagne", "bier": "beer", "mixer": "soft drink, tonic, mixer",
     "siroop": "syrup", "sap": "juice", "additief": "cocktail bitters, garnish", "overig": "other",

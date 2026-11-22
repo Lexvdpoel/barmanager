@@ -19,6 +19,7 @@ CATEGORIES: list[tuple[str, str, str]] = [
     ("tequila", "Tequila & mezcal", "#9a9a2e"),
     ("brandy", "Cognac & brandy", "#a0522d"),
     ("jenever", "Jenever & korenwijn", "#7a8f3d"),
+    ("akvavit", "Akvavit", "#4f7d6e"),
     ("likeur", "Likeur", "#b0458a"),
     ("bitter", "Bitter & amaro", "#a33b3b"),
     ("aperitief", "Vermout & aperitief", "#d0663a"),
@@ -40,8 +41,13 @@ ORDER = {k: i for i, k in enumerate(KEYS)}
 DEFAULT = "overig"
 
 
+# Letters that do not split into a base letter + accent (Arvesølvet, Kräuter is fine, Weißbier is not).
+_LETTERS = str.maketrans({"ø": "o", "Ø": "o", "æ": "ae", "Æ": "ae", "œ": "oe", "Œ": "oe", "ß": "ss",
+                          "ł": "l", "Ł": "l", "đ": "d", "Đ": "d", "þ": "th", "ð": "d"})
+
+
 def normalize(text: str) -> str:
-    text = unicodedata.normalize("NFKD", text or "")
+    text = unicodedata.normalize("NFKD", (text or "").translate(_LETTERS))
     text = "".join(ch for ch in text if not unicodedata.combining(ch)).lower()
     text = re.sub(r"[^a-z0-9&']+", " ", text)
     return " ".join(text.split())
@@ -76,6 +82,8 @@ _RULE_WORDS: list[tuple[str, list[str]]] = [
                 "bitter", "bitter aperitif", "kruidenlikeur"]),
     ("aperitief", ["vermouth", "vermouths", "vermout", "wermut", "aperitif", "aperitifs",
                    "aperitivo", "aperitief", "spritz", "quinquina"]),
+    ("akvavit", ["aquavit", "aquavits", "akvavit", "akvavitt", "akevitt", "akvaviitti", "aqua vitae",
+                 "akavit"]),
     ("likeur", ["liqueur", "liqueurs", "likeur", "likeuren", "likor", "likore", "liquore", "licor",
                 "cream liqueur", "cream liqueurs", "amaretto", "limoncello", "triple sec",
                 "curacao", "advocaat", "eierlikeur", "eggnog", "sambuca", "schnapps", "creme de",
@@ -137,6 +145,9 @@ _BRAND_WORDS: list[tuple[str, list[str]]] = [
              "pampero", "brugal", "matusalem", "stroh", "goslings", "wray & nephew", "pyrat",
              "flor de cana", "botucal", "kingston 62", "sierra madre rum", "santa teresa",
              "dictador", "clement", "trois rivieres", "j bally", "damoiseau", "black tot"]),
+    ("akvavit", ["linie", "aalborg", "lysholm", "loiten", "o p anderson", "op anderson", "gammel opland",
+                 "arvesolvet", "brennevin", "taffel", "skane akvavit", "malteserkreuz", "bommerlunder",
+                 "det norske brenneri", "simers", "eiker", "hallands flader"]),
     ("gin", ["gordon's", "gordons", "bombay sapphire", "bombay", "tanqueray", "hendrick's",
              "hendricks", "beefeater", "monkey 47", "bulldog", "roku", "the botanist",
              "sipsmith", "malfy", "aviation", "plymouth", "citadelle", "gin mare", "nordes",
@@ -228,7 +239,7 @@ def classify(tags: list[str] | None = None, texts: list[str] | None = None,
 
 
 # Spirits that, flavoured (Jim Beam Peach, Jack Daniel's Honey, ...), are also a liqueur.
-SPIRITS = ("whisky", "rum", "gin", "vodka", "tequila", "brandy", "jenever")
+SPIRITS = ("whisky", "rum", "gin", "vodka", "tequila", "brandy", "jenever", "akvavit")
 _FLAVOUR = _pattern(["peach", "perzik", "honey", "honing", "apple", "appel", "cinnamon", "kaneel", "fire",
                      "vanilla", "vanille", "cherry", "kers", "coconut", "kokos", "caramel", "karamel",
                      "salted caramel", "raspberry", "framboos", "strawberry", "aardbei", "passion fruit",

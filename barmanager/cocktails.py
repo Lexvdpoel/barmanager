@@ -396,7 +396,7 @@ def product_cats(p) -> set[str]:
     return {p["category"], *[c for c in (p["extra_categories"] or "").split(",") if c]}
 
 
-BASE_SPIRITS = {"whisky", "rum", "gin", "vodka", "tequila", "brandy", "jenever"}
+BASE_SPIRITS = {"whisky", "rum", "gin", "vodka", "tequila", "brandy", "jenever", "akvavit"}
 
 
 def match(spec: Spec, p) -> str | None:

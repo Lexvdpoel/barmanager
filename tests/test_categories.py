@@ -68,3 +68,11 @@ def test_vermouth_is_not_port():
     tags = ["en:alcoholic-beverages", "en:wines", "en:fortified-wines", "en:vermouths"]
     assert categories.classify_all(tags, ["Martini Bianco"], "Martini")[0] == "aperitief"
     assert categories.classify(texts=["Taylor's Fine Ruby Port"]) == "port"
+
+
+def test_aquavit():
+    from barmanager import categories
+    assert categories.classify(texts=["Arvesølvet Helt Klar"], brand="Arvesølvet") == "akvavit"
+    assert categories.classify(texts=["Linie Aquavit"]) == "akvavit"
+    assert categories.classify(tags=["en:aquavits"]) == "akvavit"
+    assert categories.classify(texts=["Aalborg Taffel Akvavit 45%"]) == "akvavit"
