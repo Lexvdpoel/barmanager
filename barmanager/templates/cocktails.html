@@ -11,12 +11,13 @@
       · {{ n_cocktails }} recepten
     </div>
   </div>
-  {% if user.is_admin %}
   <form method="post" action="/cocktails/bijwerken" class="actions">
+    <a class="button secondary" href="/keuken">Keuken &amp; mixers</a>
+    {% if user.is_admin %}
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <button class="secondary small" {{ 'disabled' if syncing }}>{{ 'Bezig met ophalen…' if syncing else 'Recepten bijwerken' }}</button>
+    <button class="ghost small" {{ 'disabled' if syncing }}>{{ 'Bezig met ophalen…' if syncing else 'Recepten bijwerken' }}</button>
+    {% endif %}
   </form>
-  {% endif %}
 </div>
 
 {% if not n_cocktails %}
@@ -42,10 +43,12 @@
   <select name="soort" aria-label="Alcohol" data-autosubmit>
     {% for k, v in TYPES.items() %}<option value="{{ k }}" {{ 'selected' if k == soort }}>{{ v }}</option>{% endfor %}
   </select>
+  {% if not pantry %}
   <select name="sap" aria-label="Sap en frisdrank" data-autosubmit>
     <option value="1" {{ 'selected' if assume }}>Sap, frisdrank en siroop heb ik in huis</option>
     <option value="0" {{ 'selected' if not assume }}>Sap, frisdrank en siroop moeten op voorraad zijn</option>
   </select>
+  {% endif %}
   <label class="check"><input type="checkbox" name="iba" value="1" {{ 'checked' if iba }} onchange="this.form.submit()"> Alleen klassiekers (IBA)</label>
   <button class="secondary">Zoeken</button>
 </form>
@@ -67,7 +70,7 @@
 
 {% if toon == 'bijna' and unlock %}
 <div class="panel unlock">
-  <b>Deze flessen zouden de meeste cocktails erbij opleveren</b>
+  <b>Dit zou de meeste cocktails erbij opleveren</b>
   <div class="unlock-list">
     {% for name, n in unlock %}<span class="badge">{{ name }} <b>+{{ n }}</b></span>{% endfor %}
   </div>

@@ -409,3 +409,20 @@ h3.group-head { font-size: 15px; margin: 18px 0 8px; }
 .link-name a { color: var(--text); font-weight: 600; }
 .link-name .badge { align-self: flex-start; }
 details.panel summary { cursor: pointer; }
+
+.nowrap { white-space: nowrap; }
+/* kitchen & mixers */
+.pantry-group { margin-top: 14px; }
+.pantry-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pantry-head h2 { margin: 0; }
+.pantry-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr)); gap: 4px 12px; margin-top: 8px; }
+.pantry-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: 6px 8px; border-radius: 8px; color: var(--text); font-size: 15px; cursor: pointer; }
+.pantry-item:hover { background: var(--bg); }
+.pantry-item input { width: 20px; height: 20px; accent-color: var(--ok); }
+.pantry-item:target { outline: 2px solid var(--accent); }
+.pantry-item .muted { display: block; }
+.pantry-item:not(:has(input:checked)) .p-name { color: var(--muted); }
+.pantry-item .cart { min-height: 28px; padding: 0 8px; }
+.savebar { position: sticky; bottom: 0; z-index: 4; background: var(--bg); padding: 10px 0; margin-top: 12px;
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap; border-top: 1px solid var(--line); }

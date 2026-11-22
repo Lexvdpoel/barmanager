@@ -223,3 +223,26 @@ def test_dark_rum_is_not_light_rum(settings):
     m = cocktails.Matcher(db, cocktails.stock(db, [lid]))
     assert [p["name"] for p in m.resolve("Light rum").products] == ["Bacardi Carta Blanca"]
     assert [p["name"] for p in m.resolve("Dark rum").products] == ["Havana Club Añejo 7 Años"]
+
+
+def test_kitchen_page(admin):
+    c, csrf = admin
+    db = synced(c)
+    lid = make_location(c, csrf)
+    add_product(db, "Olmeca Tequila Blanco", "tequila", 1, lid)
+    add_product(db, "Cointreau", "likeur", 1, lid)
+    # Before the kitchen page is used, lime juice and salt count as present.
+    assert {x["name"]: x for x in cocktails.evaluate_all(db, cocktails.stock(db, [lid]))}["Margarita"]["can"]
+    page = c.get("/keuken").text
+    assert "Limoensap" in page and "Zout" in page and "Keuken" in page
+    c.post("/keuken", data={"csrf": csrf, "have": ["salt"]})
+    res = {x["name"]: x for x in cocktails.evaluate_all(db, cocktails.stock(db, [lid]))}
+    assert res["Margarita"]["missing"] == ["Lime juice"]
+    page = c.get(f"/cocktails/1?loc={lid}").text
+    assert "niet in huis" in page and "/keuken#k-lime-juice" in page
+    # The cart button keeps the ticks and puts it on the shopping list (in Dutch).
+    c.post("/keuken/op-lijst", data={"csrf": csrf, "have": ["salt", "lime juice"], "naam": "Lime juice"})
+    assert {x["name"]: x for x in cocktails.evaluate_all(db, cocktails.stock(db, [lid]))}["Margarita"]["can"]
+    assert "Limoensap" in c.get("/boodschappen").text
+    c.post("/keuken", data={"csrf": csrf, "actie": "uit"})
+    assert not cocktails.pantry_mode(db)

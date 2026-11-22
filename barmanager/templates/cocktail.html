@@ -34,20 +34,23 @@
         {% for r in rows %}
         <tr class="st-{{ r.state }}">
           <td class="amount" {% if r.measure != r.measure_orig %}title="{{ r.measure_orig }}"{% endif %}>{{ r.measure }}</td>
-          {% set ing_url = '/cocktails-ingredient?naam=' ~ (r.name|urlencode) ~ ('&loc=' ~ loc if loc else '') ~ '&back=' ~ (('/cocktails/' ~ c.id ~ q)|urlencode) %}
+          {% set kitchen = r.kind != 'drank' %}
+          {% set ing_url = ('/keuken#k-' ~ r.key|replace(' ', '-')) if kitchen else ('/cocktails-ingredient?naam=' ~ (r.name|urlencode) ~ ('&loc=' ~ loc if loc else '') ~ '&back=' ~ (('/cocktails/' ~ c.id ~ q)|urlencode)) %}
           <td>
-            {% if r.kind != 'basis' %}<a class="ing-link" href="{{ ing_url }}"><b>{{ r.name }}</b></a>{% else %}<b>{{ r.name }}</b>{% endif %}
+            {% if r.key not in ('ice', 'water') %}<a class="ing-link" href="{{ ing_url }}"><b>{{ r.name }}</b></a>{% else %}<b>{{ r.name }}</b>{% endif %}
+            {% if r.nl %}<span class="muted small">({{ r.nl }})</span>{% endif %}
             <div class="small">
               {% if r.state == 'ok' %}<span class="okc">✓ {{ r.products|map(attribute='name')|join(', ') }}</span>
               {% elif r.state == 'vervanger' %}<span class="warn">≈ vervanger: {{ r.products|map(attribute='name')|join(', ') }}</span>
-              {% elif r.state == 'altijd' %}<span class="muted">✓ heb je altijd in huis</span>
+              {% elif r.state == 'altijd' %}<span class="okc">✓ in huis</span>
               {% elif r.state == 'basis' %}<span class="muted">{{ 'sap, frisdrank of siroop' if r.kind == 'mixer' else 'vers / basis' }}</span>
+              {% elif kitchen %}<span class="bad">✕ niet in huis</span>
               {% else %}<span class="bad">✕ niet op voorraad</span>{% endif %}
             </div>
           </td>
           <td class="right">
-            {% if r.kind != 'basis' %}
-            <a class="small" href="{{ ing_url }}">flessen ›</a>
+            {% if r.key not in ('ice', 'water') %}
+            <a class="small nowrap" href="{{ ing_url }}">{{ 'keuken' if kitchen else 'flessen' }}&nbsp;›</a>
             {% endif %}
           </td>
         </tr>

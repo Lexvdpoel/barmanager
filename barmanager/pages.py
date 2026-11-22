@@ -14,7 +14,7 @@ from .web import _int, get_location, get_product, redirect, render, safe_back
 
 router = APIRouter()
 
-SHOW = {"kan": "Kan ik maken", "bijna": "Mist één fles", "alles": "Alle cocktails"}
+SHOW = {"kan": "Kan ik maken", "bijna": "Mist er één", "alles": "Alle cocktails"}
 TYPES = {"alcohol": "Met alcohol", "alcoholvrij": "Zonder alcohol", "alles": "Met en zonder alcohol"}
 SPIRIT_CATS = ["gin", "rum", "vodka", "whisky", "tequila", "brandy", "likeur", "aperitief", "bitter", "bubbels",
                "wijn", "port", "bier"]
@@ -104,7 +104,8 @@ def cocktails_page(request: Request, user=Depends(require_user), loc: int | None
                   assume=assume, fles_p=fles_p, iba=iba, met=met, met_counts=met_counts, url_with=url_with,
                   unlock=sorted(unlock.items(), key=lambda x: -x[1])[:8],
                   n_cocktails=db.one("SELECT COUNT(*) AS n FROM cocktails")["n"], last_sync=cocktails.last_sync(db),
-                  syncing=st.cocktail_sync.busy, sync_error=st.cocktail_sync.error, n_stock=len(stock))
+                  syncing=st.cocktail_sync.busy, sync_error=st.cocktail_sync.error, n_stock=len(stock),
+                  pantry=cocktails.pantry_mode(db))
 
 
 def _cocktail(db, cid: str) -> dict:
@@ -121,7 +122,8 @@ def _ingredient_rows(db, c: dict, matcher: cocktails.Matcher) -> list[dict]:
     rows = []
     for ing in c["ingredients"]:
         st = matcher.resolve(ing["name"])
-        rows.append({"name": ing["name"], "key": cocktails.norm(ing["name"]),
+        rows.append({"name": ing["name"], "key": cocktails.canon(cocktails.norm(ing["name"])),
+                     "nl": cocktails.NL.get(cocktails.canon(cocktails.norm(ing["name"])), "") if st.kind != "drank" else "",
                      "measure": cocktails.measure_nl(ing["measure"]), "measure_orig": ing["measure"],
                      "state": st.state, "kind": st.kind, "products": st.products})
     return rows
@@ -210,6 +212,59 @@ def cocktail_missing_to_list(request: Request, cid: str, user=Depends(require_us
             added += 1
     return redirect(safe_back(back, f"/cocktails/{cid}"),
                     msg=f"{added} op de boodschappenlijst gezet." if added else "Stond al op de lijst.")
+
+
+# ---- kitchen & mixers ----------------------------------------------------------------------------
+@router.get("/keuken", response_class=HTMLResponse)
+def pantry_page(request: Request, user=Depends(require_user)):
+    db = db_of(request)
+    items = cocktails.pantry_items(db)
+    stock = cocktails.stock(db, [l["id"] for l in bar.visible_locations(db, user)])
+    for d in items:
+        spec = cocktails.spec_for(d["key"])
+        d["bottles"] = [p["name"] for p in stock if cocktails.match(spec, p) == "exact"]
+    groups = [(key, label, [d for d in items if d["group"] == key]) for key, label in cocktails.PANTRY_GROUPS]
+    return render(request, "pantry.html", groups=[g for g in groups if g[2]], mode=cocktails.pantry_mode(db),
+                  n_have=sum(d["have"] for d in items), n=len(items))
+
+
+@router.post("/keuken")
+def pantry_save(request: Request, user=Depends(require_user), csrf: str = Form(""), have: list[str] = Form([]),
+                actie: str = Form("")):
+    check_csrf(request, csrf)
+    db = db_of(request)
+    if actie == "uit":
+        db.run("DELETE FROM kv WHERE key='pantry'")
+        return redirect("/keuken", msg="Uitgezet: verse ingrediënten, sap en frisdrank tellen weer als aanwezig.")
+    n, total = _save_pantry(db, have)
+    return redirect("/keuken", msg=f"Opgeslagen: {n} van de {total} dingen in huis.")
+
+
+def _save_pantry(db, have: list[str]) -> tuple[int, int]:
+    keys = {d["key"] for d in cocktails.pantry_items(db)}
+    have_set = {cocktails.norm(h) for h in have}
+    with db.tx():
+        for k in keys:
+            db.run("INSERT INTO ingredient_prefs(ingredient, always) VALUES (?,?) "
+                   "ON CONFLICT(ingredient) DO UPDATE SET always=excluded.always", k, 1 if k in have_set else 0)
+        db.run("INSERT INTO kv(key, value) VALUES ('pantry', '1') ON CONFLICT(key) DO UPDATE SET value='1'")
+    return len(have_set & keys), len(keys)
+
+
+@router.post("/keuken/op-lijst")
+def pantry_to_list(request: Request, user=Depends(require_user), csrf: str = Form(""), naam: str = Form(""),
+                   have: list[str] = Form([])):
+    check_csrf(request, csrf)
+    db = db_of(request)
+    _save_pantry(db, have)         # the cart button submits the whole form: keep the ticks too
+    if naam.strip():
+        label = cocktails.NL.get(cocktails.norm(naam)) or naam
+        label = label[:1].upper() + label[1:]
+        exists = db.one("SELECT 1 FROM shopping_items WHERE product_id IS NULL AND kind='handmatig' "
+                        "AND created_by=? AND lower(name)=lower(?)", user["id"], label)
+        if not exists:
+            bar.add_item(db, user, None, None, label)
+    return redirect("/keuken", msg=f"'{naam}' staat op de boodschappenlijst.")
 
 
 # ---- shopping list -------------------------------------------------------------------------------

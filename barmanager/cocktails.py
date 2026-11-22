@@ -447,6 +447,7 @@ class Matcher:
     def __init__(self, db: Database, products: list[dict], assume_mixers: bool = True):
         self.products = products
         self.assume_mixers = assume_mixers
+        self.pantry = pantry_mode(db)
         self.always = {r["ingredient"] for r in db.all("SELECT ingredient FROM ingredient_prefs WHERE always=1")}
         self.links: dict[str, set[int]] = {}
         for r in db.all("SELECT ingredient, product_id FROM ingredient_links"):
@@ -463,8 +464,12 @@ class Matcher:
         subs = [p for p in self.products if p not in exact and match(spec, p) == "sub"]
         if exact:
             st = Status("ok", spec.kind, exact)
-        elif key in self.always:
+        elif canon(key) in self.always:
             st = Status("altijd", spec.kind, [])
+        elif key in TRIVIAL:
+            st = Status("basis", spec.kind, [])
+        elif self.pantry and spec.kind in ("basis", "mixer"):
+            st = Status("mist", spec.kind, [])       # not ticked on the kitchen page
         elif spec.kind == "basis" or (spec.kind == "mixer" and self.assume_mixers):
             st = Status("basis", spec.kind, [])
         elif subs:
@@ -473,6 +478,117 @@ class Matcher:
             st = Status("mist", spec.kind, [])
         self._cache[key] = st
         return st
+
+
+# ---- kitchen & mixers ("pantry") -------------------------------------------------------------------
+# Once the user fills in the pantry page, fresh ingredients, juices, sodas and syrups only count
+# when ticked there (or when a matching bottle is in stock). Before that everything is assumed.
+TRIVIAL = {"ice", "water"}
+# Different recipe words for the same thing in the kitchen: one tick covers them all.
+ALIAS = {"club soda": "soda water", "carbonated water": "soda water", "pepsi cola": "coca cola",
+         "sprite": "7 up", "lemon lime soda": "7 up", "simple syrup": "sugar syrup",
+         "fresh lemon juice": "lemon juice", "fresh lime juice": "lime juice", "cherries": "cherry",
+         "whipping cream": "heavy cream", "sour mix": "sweet and sour", "black pepper": "pepper"}
+
+
+def canon(key: str) -> str:
+    return ALIAS.get(key, key)
+PANTRY_GROUPS = [
+    ("sap", "Sappen"), ("fris", "Frisdrank & bruiswater"), ("siroop", "Siropen & mixen"),
+    ("fruit", "Fruit, groente & garnering"), ("zuivel", "Zuivel & ei"), ("zoet", "Suiker & zoet"),
+    ("kruiden", "Kruiden & smaakmakers"), ("koffie", "Koffie & thee"), ("overig", "Overig"),
+]
+_GROUP_WORDS = [
+    ("koffie", ["coffee", "espresso", "tea", "hot chocolate", "iced tea"]),
+    ("siroop", ["syrup", "sirup", "cordial", "grenadine", "sweet and sour", "sour mix", "mix", "cream of coconut"]),
+    ("sap", ["juice", "nectar", "lemonade", "limeade"]),
+    ("fris", ["cola", "tonic", "ginger ale", "ginger beer", "7 up", "sprite", "soda", "carbonated", "root beer",
+              "dr pepper", "mountain dew", "fresca", "sarsaparilla", "surge", "russchian", "fruit punch",
+              "bitter lemon", "kool aid"]),
+    ("zuivel", ["milk", "cream", "egg", "yoghurt", "butter", "ice cream", "sherbet", "half and half"]),
+    ("zoet", ["sugar", "honey", "chocolate", "cocoa", "oreo", "marshmallow", "jello", "vanilla"]),
+    ("kruiden", ["mint", "nutmeg", "cinnamon", "cloves", "ginger", "cardamom", "allspice", "coriander", "cumin",
+                 "pepper", "chili", "salt", "asafoetida", "rosemary", "thyme", "lavender", "rose", "tabasco",
+                 "hot sauce", "worcestershire", "soy sauce", "flavoring", "coloring"]),
+    ("fruit", ["lemon", "lime", "orange", "pineapple", "apple", "banana", "mango", "kiwi", "papaya", "strawberr",
+               "blackberr", "figs", "cucumber", "fruit", "cherr", "olive", "peel", "spiral"]),
+]
+NL = {
+    "sugar": "suiker", "powdered sugar": "poedersuiker", "brown sugar": "bruine suiker",
+    "demerara sugar": "demerarasuiker", "lemon": "citroen", "lime": "limoen", "lemon juice": "citroensap",
+    "lime juice": "limoensap", "fresh lemon juice": "vers citroensap", "fresh lime juice": "vers limoensap",
+    "lemon peel": "citroenschil", "lime peel": "limoenschil", "orange": "sinaasappel",
+    "orange peel": "sinaasappelschil", "orange spiral": "sinaasappelkrul", "blood orange": "bloedsinaasappel",
+    "milk": "melk", "coffee": "koffie", "espresso": "espresso", "tea": "thee", "hot chocolate": "warme chocolademelk",
+    "egg": "ei", "egg white": "eiwit", "egg yolk": "eidooier", "cream": "room", "light cream": "koffieroom",
+    "heavy cream": "slagroom (vloeibaar)", "whipping cream": "slagroom", "whipped cream": "slagroom (geklopt)",
+    "half and half": "half melk, half room", "condensed milk": "gecondenseerde melk",
+    "coconut milk": "kokosmelk", "yoghurt": "yoghurt", "butter": "boter", "mint": "munt",
+    "nutmeg": "nootmuskaat", "cinnamon": "kaneel", "cloves": "kruidnagel", "ginger": "gember",
+    "cardamom": "kardemom", "allspice": "piment", "coriander": "koriander", "cumin seed": "komijnzaad",
+    "pepper": "peper", "black pepper": "zwarte peper", "cayenne pepper": "cayennepeper",
+    "red chili flakes": "chilivlokken", "salt": "zout", "celery salt": "selderijzout",
+    "vanilla": "vanille", "vanilla extract": "vanille-extract", "almond flavoring": "amandelaroma",
+    "honey": "honing", "maple syrup": "ahornsiroop", "corn syrup": "maissiroop", "sugar syrup": "suikersiroop",
+    "simple syrup": "suikersiroop", "olive": "olijf", "olive brine": "olijvennat",
+    "maraschino cherry": "cocktailkers", "cherry": "kers", "cherries": "kersen", "pineapple": "ananas",
+    "apple": "appel", "banana": "banaan", "mango": "mango", "kiwi": "kiwi", "papaya": "papaja",
+    "strawberries": "aardbeien", "blackberries": "bramen", "figs": "vijgen", "cucumber": "komkommer",
+    "fruit": "fruit", "rosemary": "rozemarijn", "thyme": "tijm", "lavender": "lavendel", "rose": "roos",
+    "chocolate": "chocolade", "cocoa powder": "cacaopoeder", "oreo cookie": "oreokoekje",
+    "marshmallows": "marshmallows", "vanilla ice cream": "vanille-ijs", "sherbet": "sorbetijs", "jello": "gelatinepudding",
+    "tabasco sauce": "tabasco", "hot sauce": "hete saus", "worcestershire sauce": "worcestershiresaus",
+    "soy sauce": "sojasaus", "soda water": "spuitwater / bruiswater",
+    "orange juice": "sinaasappelsap", "pineapple juice": "ananassap", "cranberry juice": "cranberrysap",
+    "apple juice": "appelsap", "grapefruit juice": "grapefruitsap", "tomato juice": "tomatensap",
+    "grape juice": "druivensap", "passion fruit juice": "passievruchtsap", "cherry juice": "kersensap",
+    "pomegranate juice": "granaatappelsap", "fruit juice": "vruchtensap", "peach nectar": "perziknectar",
+    "apricot nectar": "abrikozennectar", "lemonade": "citroenlimonade", "pink lemonade": "roze limonade",
+    "limeade": "limoenlimonade", "ginger ale": "ginger ale", "ginger beer": "gemberbier", "coca cola": "cola",
+    "pepsi cola": "cola", "7 up": "7-Up / Sprite", "guava juice": "guavesap", "lime juice cordial": "limoensiroop", "root beer": "root beer", "grape soda": "druivenfrisdrank", "carbonated soft drink": "frisdrank", "daiquiri mix": "daiquiri-mix", "pina colada mix": "piña colada-mix",
+    "tonic water": "tonic", "bitter lemon": "bitter lemon", "iced tea": "ijsthee", "grenadine": "grenadine",
+    "orgeat syrup": "amandelsiroop (orgeat)", "raspberry syrup": "frambozensiroop", "vanilla syrup": "vanillesiroop",
+    "coconut syrup": "kokossiroop", "mint syrup": "muntsiroop", "honey syrup": "honingsiroop",
+    "ginger syrup": "gembersiroop", "passion fruit syrup": "passievruchtsiroop", "agave syrup": "agavesiroop",
+    "rosemary syrup": "rozemarijnsiroop", "pineapple syrup": "ananassiroop", "sirup of roses": "rozensiroop",
+    "chocolate syrup": "chocoladesiroop", "elderflower cordial": "vlierbloesemsiroop",
+    "blackcurrant cordial": "zwarte-bessensiroop", "roses sweetened lime juice": "limoensiroop (Rose's)",
+    "sweet and sour": "sweet & sour mix", "sour mix": "sour mix", "cream of coconut": "kokosroom",
+    "kool aid": "Kool-Aid (limonadepoeder)", "fruit punch": "vruchtenpunch",
+}
+
+
+def pantry_mode(db: Database) -> bool:
+    r = db.one("SELECT value FROM kv WHERE key='pantry'")
+    return bool(r and r["value"] == "1")
+
+
+def pantry_group(key: str) -> str:
+    for group, words in _GROUP_WORDS:
+        if any(re.search(r"(?<![a-z])" + re.escape(w), key) for w in words):
+            return group
+    return "overig"
+
+
+def pantry_items(db: Database) -> list[dict]:
+    """Every fresh ingredient, juice, soda and syrup the recipes use, with how often."""
+    counts: dict[str, dict] = {}
+    for r in db.all("SELECT name, COUNT(DISTINCT cocktail_id) AS n FROM cocktail_ingredients GROUP BY name"):
+        key = norm(r["name"])
+        spec = spec_for(key)
+        if spec.kind == "drank" or key in TRIVIAL or not key:
+            continue
+        key = canon(key)
+        d = counts.setdefault(key, {"key": key, "name": r["name"], "n": 0, "kind": spec.kind})
+        d["n"] += r["n"]
+    have = {r["ingredient"]: r["always"] for r in db.all("SELECT ingredient, always FROM ingredient_prefs")}
+    mode = pantry_mode(db)
+    for d in counts.values():
+        d["nl"] = NL.get(d["key"], "")
+        d["group"] = pantry_group(d["key"])
+        # Before the page was ever saved everything counted as present, so start from there.
+        d["have"] = bool(have.get(d["key"])) if mode else True
+    return sorted(counts.values(), key=lambda d: -d["n"])
 
 
 def all_cocktails(db: Database) -> list[dict]:

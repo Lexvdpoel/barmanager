@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Keuken & mixers{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div>
+    <div class="crumbs"><a href="/cocktails">Cocktails</a> /</div>
+    <h1>Keuken &amp; mixers</h1>
+    <div class="muted small">{{ n_have }} van de {{ n }} dingen in huis</div>
+  </div>
+</div>
+
+{% if not mode %}
+<div class="flash info">Nu gaat BarManager ervan uit dat je <b>alles</b> hieronder in huis hebt. Vink uit wat je niet hebt en
+  sla op; daarna telt bij de cocktails alleen nog wat hier aangevinkt is, en zie je meteen wat je mist.</div>
+{% endif %}
+<p class="muted small">Alles wat de recepten gebruiken naast de flessen: sap, frisdrank, siroop, fruit, zuivel, kruiden.
+  Gesorteerd op hoe vaak het voorkomt. Staat een fles in de bar die past (bijvoorbeeld tonic of grenadine),
+  dan telt die ook zonder vinkje. Met het winkelwagentje zet je iets op de boodschappenlijst.</p>
+
+<form method="post" action="/keuken" id="pantry">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  {% for key, label, items in groups %}
+  <section class="panel pantry-group">
+    <div class="pantry-head">
+      <h2>{{ label }} <span class="muted small">{{ items|selectattr('have')|list|length }}/{{ items|length }}</span></h2>
+      <span class="row">
+        <button type="button" class="ghost small" data-all="{{ key }}">Alles</button>
+        <button type="button" class="ghost small" data-none="{{ key }}">Niets</button>
+      </span>
+    </div>
+    <div class="pantry-list" data-group="{{ key }}">
+      {% for d in items %}
+      <label class="pantry-item" id="k-{{ d.key|replace(' ', '-') }}">
+        <input type="checkbox" name="have" value="{{ d.key }}" {{ 'checked' if d.have }}>
+        <span><span class="p-name">{{ d.nl|capitalize if d.nl else d.name }}</span>
+          <span class="muted small">{% if d.nl %}{{ d.name }} · {% endif %}{{ d.n }} cocktail{{ 's' if d.n != 1 }}{% if d.bottles %} · ✓ {{ d.bottles|join(', ') }}{% endif %}</span></span>
+        <button class="ghost small cart" formaction="/keuken/op-lijst" name="naam" value="{{ d.name }}" title="Op de boodschappenlijst" aria-label="{{ d.name }} op de boodschappenlijst">🛒</button>
+      </label>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+  <div class="savebar">
+    <button>Opslaan</button>
+    {% if mode %}<button name="actie" value="uit" class="ghost small" formnovalidate>Niet meer bijhouden (alles als aanwezig tellen)</button>{% endif %}
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll("[data-all],[data-none]").forEach((b) => b.addEventListener("click", () => {
+  const g = b.dataset.all || b.dataset.none;
+  document.querySelectorAll(`[data-group="${g}"] input[type=checkbox]`).forEach((c) => { c.checked = !!b.dataset.all; });
+}));
+</script>
+{% endblock %}
