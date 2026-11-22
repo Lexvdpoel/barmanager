@@ -2,13 +2,25 @@
 {% block title %}{{ naam }}{% endblock %}
 {% block main_class %}medium{% endblock %}
 {% block content %}
+{% set exact = stock|selectattr('linked')|list + stock|rejectattr('linked')|selectattr('auto', 'equalto', 'exact')|list %}
+{% set subs = stock|rejectattr('linked')|selectattr('auto', 'equalto', 'sub')|list %}
+{% set rest = stock|rejectattr('linked')|rejectattr('auto')|list %}
+{% macro row(p, badge) %}
+<label class="link-row">
+  <input type="hidden" name="shown" value="{{ p.id }}">
+  <input type="checkbox" name="products" value="{{ p.id }}" {{ 'checked' if p.linked }} aria-label="Altijd koppelen aan {{ naam }}">
+  <span class="link-img">{% if p.image %}<img src="/images/{{ p.image }}" alt="" loading="lazy">{% endif %}</span>
+  <span class="link-name"><a href="/producten/{{ p.id }}{{ '?loc=' ~ loc if loc }}">{{ p.name or p.barcode }}</a>
+    {% if badge %}{{ badge|safe }}{% endif %}
+    <span class="muted small">{{ p.qty }} fles{{ 'sen' if p.qty != 1 }}{% if p.brand and p.brand not in (p.name or '') %} · {{ p.brand }}{% endif %}</span></span>
+</label>
+{% endmacro %}
 <div class="pagehead">
   <div>
-    <div class="crumbs"><a href="/cocktails">Cocktails</a> / ingrediënt</div>
+    <div class="crumbs"><a href="{{ back }}">← terug</a></div>
     <h1>{{ naam }}</h1>
-    <div class="muted small">Komt voor in {{ used_in }} cocktail{{ 's' if used_in != 1 }}</div>
+    <div class="muted small">Komt voor in {{ used_in }} cocktail{{ 's' if used_in != 1 }}{% if location %} · flessen in {{ location.name }}{% endif %}</div>
   </div>
-  <div class="actions"><a class="button secondary" href="{{ back }}">Terug</a></div>
 </div>
 
 <form method="post" action="/cocktails-ingredient" class="stack-lg">
@@ -16,32 +28,40 @@
   <input type="hidden" name="naam" value="{{ naam }}">
   <input type="hidden" name="back" value="{{ back }}">
   <input type="hidden" name="loc" value="{{ loc or '' }}">
+
   <div class="panel stack">
-    <label class="check"><input type="checkbox" name="always" value="1" {{ 'checked' if always }}>
-      Dit heb ik altijd in huis (hoeft niet op voorraad te staan)</label>
+    <h2 class="flush">Juiste flessen <span class="muted small">{{ exact|length }}</span></h2>
+    {% if exact %}
+    <div class="link-list">
+      {% for p in exact %}{{ row(p, '<span class="badge" style="--c: #1f8a4c">zelf gekoppeld</span>' if p.linked else '') }}{% endfor %}
+    </div>
+    {% else %}
+    <p class="muted">Geen fles op voorraad die precies {{ naam }} is.</p>
+    {% endif %}
   </div>
 
   <div class="panel stack">
-    <h2 class="flush">Welke flessen kun je hiervoor gebruiken?</h2>
-    <p class="muted small">Herkend = BarManager koppelt deze fles zelf op naam en categorie. Vink een fles aan om hem
-      altijd voor {{ naam }} te laten tellen, ook als de naam niet wordt herkend.</p>
-    {% if stock %}
-    <div class="link-list">
-      {% for p in stock %}
-      <label class="link-row">
-        <input type="hidden" name="shown" value="{{ p.id }}">
-        <input type="checkbox" name="products" value="{{ p.id }}" {{ 'checked' if p.linked }}>
-        <span class="link-img">{% if p.image %}<img src="/images/{{ p.image }}" alt="" loading="lazy">{% endif %}</span>
-        <span class="link-name">{{ p.name or p.barcode }}
-          {% if p.auto == 'exact' %}<span class="badge" style="--c: #1f8a4c">herkend</span>
-          {% elif p.auto == 'sub' %}<span class="badge" style="--c: #b26a00">vervanger</span>{% endif %}</span>
-      </label>
-      {% endfor %}
-    </div>
+    <h2 class="flush">Vervangers <span class="muted small">{{ subs|length }}</span></h2>
+    {% if subs %}
+    <p class="muted small">Zelfde soort drank, maar niet precies wat het recept vraagt. Het kan, de smaak wordt anders.</p>
+    <div class="link-list">{% for p in subs %}{{ row(p, '') }}{% endfor %}</div>
     {% else %}
-    <p class="muted">Er staan geen flessen op voorraad{% if location %} in {{ location.name }}{% endif %}.</p>
+    <p class="muted">Geen vervangers op voorraad.</p>
     {% endif %}
   </div>
-  <div class="row"><button>Opslaan</button></div>
+
+  {% if rest %}
+  <details class="panel">
+    <summary><b>Andere flessen</b> <span class="muted small">{{ rest|length }} · zelf koppelen als BarManager een fles niet herkent</span></summary>
+    <div class="link-list" style="margin-top: 10px">{% for p in rest %}{{ row(p, '') }}{% endfor %}</div>
+  </details>
+  {% endif %}
+
+  <div class="panel stack">
+    <p class="muted small">Vink een fles aan om hem altijd als juiste fles voor {{ naam }} te laten tellen.</p>
+    <label class="check"><input type="checkbox" name="always" value="1" {{ 'checked' if always }}>
+      {{ naam }} heb ik altijd in huis (hoeft niet op voorraad te staan)</label>
+    <div class="row"><button>Opslaan</button></div>
+  </div>
 </form>
 {% endblock %}

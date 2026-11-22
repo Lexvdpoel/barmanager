@@ -88,6 +88,12 @@ def test_substitute_and_manual_link(admin):
     # Link the unknown bottle to the ingredient by hand.
     page = c.get(f"/cocktails-ingredient?naam=Angostura+bitters&loc={lid}").text
     assert "Huisgemaakte bitter" in page
+    page = c.get(f"/cocktails-ingredient?naam=Bourbon&loc={lid}").text
+    exact, subs = page.split("Vervangers")[0], page.split("Vervangers")[1].split("Andere flessen")[0]
+    assert "Glen Moray" in subs and "Glen Moray" not in exact.split("Juiste flessen")[1]
+    page = c.get(f"/cocktails-ingredient?naam=Scotch&loc={lid}").text
+    assert "Glen Moray" in page.split("Juiste flessen")[1].split("Vervangers")[0]
+    assert "/cocktails-ingredient?naam=Scotch" in c.get(f"/cocktails/4?loc={lid}").text
     c.post("/cocktails-ingredient", data={"csrf": csrf, "naam": "Angostura bitters", "products": [bitters],
                                           "shown": [bitters, jw], "loc": lid})
     res = {x["name"]: x for x in cocktails.evaluate_all(db, cocktails.stock(db, [lid]))}

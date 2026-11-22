@@ -401,3 +401,11 @@ h3.group-head { font-size: 15px; margin: 18px 0 8px; }
   body.print-qr #barkaart-panel { border: 0; box-shadow: none; }
   body.print-qr .qr { width: 80mm; height: 80mm; border: 0; }
 }
+
+/* ingredient options */
+.ing-link { color: var(--text); text-decoration: underline dotted; text-underline-offset: 3px; }
+.ing-link:hover { color: var(--accent); }
+.link-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.link-name a { color: var(--text); font-weight: 600; }
+.link-name .badge { align-self: flex-start; }
+details.panel summary { cursor: pointer; }
