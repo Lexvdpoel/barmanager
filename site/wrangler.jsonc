@@ -1,0 +1,15 @@
+// barmanager.club: the Worker "barmanager", static files only (deployed by .github/workflows/site.yml)
+{
+  "name": "barmanager",
+  "compatibility_date": "2026-11-22",
+  "assets": {
+    "directory": "./public",
+    "html_handling": "auto-trailing-slash"
+  },
+  "routes": [
+    { "pattern": "barmanager.club", "custom_domain": true },
+    { "pattern": "www.barmanager.club", "custom_domain": true }
+  ],
+  "workers_dev": true,
+  "preview_urls": true
+}

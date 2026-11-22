@@ -1,5 +1,13 @@
 # BarManager
 
+**[barmanager.club](https://barmanager.club)** · MIT-licentie
+
+> *English:* a self-hosted home bar inventory. Scan bottles with your phone camera, BarManager looks them up
+> online (name, brand, photos, category), shows which cocktails you can make and keeps a shopping list.
+> One Docker container (arm64 + amd64). The app itself is in Dutch.
+
+![BarManager: een thuisbar met flessen per categorie](site/public/img/location.webp)
+
 Drankvoorraad bijhouden per locatie door barcodes te scannen.
 
 - Maak een **locatie** aan (thuisbar, kelder, café…) en geef eventueel andere gebruikers toegang.

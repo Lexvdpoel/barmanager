@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BarManager · Your home bar, always in stock</title>
+<meta name="description" content="BarManager keeps track of every bottle in your bar: scan a barcode with your phone, it looks up the bottle online and tells you which cocktails you can make and what to buy. Free, open source and self-hosted with Docker.">
+<meta name="theme-color" content="#1c1410">
+<meta property="og:title" content="BarManager">
+<meta property="og:description" content="Scan your bottles, see which cocktails you can make tonight and what to buy. Free, open source, self-hosted.">
+<meta property="og:image" content="https://barmanager.club/img/location.webp">
+<meta property="og:url" content="https://barmanager.club/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="BarManager">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://barmanager.club/">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"BarManager",
+ "url":"https://barmanager.club/","applicationCategory":"LifestyleApplication","operatingSystem":"Docker (Linux, arm64 and amd64)",
+ "description":"Self-hosted home bar inventory: scan bottles with your phone, automatic product lookup and photos, cocktails you can make, shopping list and statistics.",
+ "offers":{"@type":"Offer","price":"0","priceCurrency":"EUR"},"license":"https://opensource.org/licenses/MIT",
+ "codeRepository":"https://github.com/Lexvdpoel/barmanager","image":"https://barmanager.club/img/location.webp"}
+</script>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<script src="site.js" defer></script>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="icon.svg" alt="" width="28" height="28">BarManager</a>
+    <nav class="nav">
+      <a href="#features"><span lang="en">Features</span><span lang="nl">Functies</span></a>
+      <a href="#cocktails">Cocktails</a>
+      <a href="#install"><span lang="en">Install</span><span lang="nl">Installeren</span></a>
+      <a href="https://github.com/Lexvdpoel/barmanager">GitHub</a>
+    </nav>
+    <div class="lang" role="group" aria-label="Language / Taal">
+      <button data-lang="en" aria-pressed="true">EN</button>
+      <button data-lang="nl" aria-pressed="false">NL</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-text">
+        <p class="kicker"><span lang="en">Free · open source · self-hosted</span><span lang="nl">Gratis · open source · zelf gehost</span></p>
+        <h1>
+          <span lang="en">Your home bar, <em>always in stock.</em></span>
+          <span lang="nl">Je thuisbar, <em>altijd op voorraad.</em></span>
+        </h1>
+        <p class="lead" lang="en">BarManager keeps track of every bottle in your bar, cellar or clubhouse. <b>Scan a barcode with your phone</b> and it looks the bottle up online: name, brand, photo, alcohol and category. Then it shows <b>which cocktails you can make tonight</b> and what is worth buying next.</p>
+        <p class="lead" lang="nl">BarManager houdt elke fles in je bar, kelder of clubhuis bij. <b>Scan een barcode met je telefoon</b> en hij zoekt de fles op internet op: naam, merk, foto, alcohol en categorie. Daarna zie je <b>welke cocktails je vanavond kunt maken</b> en wat de moeite waard is om te kopen.</p>
+        <div class="cta">
+          <a class="btn primary" href="#install"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14"/></svg><span lang="en">Install with Docker</span><span lang="nl">Installeren met Docker</span></a>
+          <a class="btn ghost" href="https://github.com/Lexvdpoel/barmanager"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 7 3.5 12l5 5M15.5 7l5 5-5 5M13.5 4.5l-3 15"/></svg>GitHub</a>
+        </div>
+        <ul class="facts">
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M7 7V5h10v2M8 11v4M11 11v4M14 11v4M17 11v4"/></svg><span lang="en">Docker, arm64 &amp; amd64</span><span lang="nl">Docker, arm64 &amp; amd64</span></li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg><span lang="en">Works in the phone browser</span><span lang="nl">Werkt in de browser van je telefoon</span></li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l7 3v5.5c0 4.2-3 7.2-7 8.5-4-1.3-7-4.3-7-8.5V6.5z"/><path d="m9 12 2 2 4-4"/></svg><span lang="en">MIT licence</span><span lang="nl">MIT-licentie</span></li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg><span lang="en">App in Dutch</span><span lang="nl">App in het Nederlands</span></li>
+        </ul>
+      </div>
+      <div class="hero-visual">
+        <figure class="desk"><img src="img/location.webp" width="1280" height="860" alt="BarManager: a home bar with bottles grouped by category, open bottles and their fill level"></figure>
+        <figure class="phone"><img src="img/m-location.webp" width="390" height="844" alt="BarManager on a phone"></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="steps" id="features">
+    <div class="wrap">
+      <h2><span lang="en">Three steps from bottle to <em>cocktail</em></span><span lang="nl">In drie stappen van fles naar <em>cocktail</em></span></h2>
+      <ol class="step-list">
+        <li>
+          <span class="step-n">1</span>
+          <h3><span lang="en">Scan</span><span lang="nl">Scannen</span></h3>
+          <p lang="en">Point your phone camera at the barcode, or use a USB or Bluetooth hand scanner. A beep, and the bottle is in stock. The scanner pauses after each bottle, so nothing gets counted twice.</p>
+          <p lang="nl">Richt de camera van je telefoon op de barcode, of gebruik een USB- of Bluetooth-handscanner. Een piep, en de fles staat op voorraad. Na elke fles pauzeert de scanner, zodat niets dubbel telt.</p>
+        </li>
+        <li>
+          <span class="step-n">2</span>
+          <h3><span lang="en">It looks it up</span><span lang="nl">Hij zoekt het op</span></h3>
+          <p lang="en">Open Food Facts, UPCitemdb, Wikipedia and, if you like, your own SearXNG: name, brand, volume, alcohol, product photos and the right category, even "whisky and liqueur" for a honey whiskey.</p>
+          <p lang="nl">Open Food Facts, UPCitemdb, Wikipedia en desgewenst je eigen SearXNG: naam, merk, inhoud, alcohol, productfoto's en de juiste categorie, zelfs "whisky én likeur" voor een honingwhiskey.</p>
+        </li>
+        <li>
+          <span class="step-n">3</span>
+          <h3><span lang="en">Pour</span><span lang="nl">Inschenken</span></h3>
+          <p lang="en">See what you can make with what is on the shelf, keep an eye on open bottles, and let the shopping list fill itself.</p>
+          <p lang="nl">Zie wat je kunt maken met wat er op de plank staat, houd geopende flessen in de gaten en laat de boodschappenlijst zichzelf vullen.</p>
+        </li>
+      </ol>
+      <figure class="phones">
+        <img src="img/m-scan.webp" width="390" height="844" alt="The camera scanner on a phone" loading="lazy">
+        <img src="img/m-product.webp" width="390" height="844" alt="A bottle with photos, stock and value" loading="lazy">
+        <img src="img/m-product-level.webp" width="390" height="844" alt="An open bottle: how full it is and how long it has been open" loading="lazy">
+      </figure>
+    </div>
+  </section>
+
+  <section class="feature" id="cocktails">
+    <div class="wrap split">
+      <div>
+        <p class="label">Cocktails</p>
+        <h2><span lang="en">What can I make <em>tonight?</em></span><span lang="nl">Wat kan ik <em>vanavond</em> maken?</span></h2>
+        <p lang="en">More than 600 recipes from TheCocktailDB, matched against the bottles you actually have. Three tabs: what you can make, what is <b>one ingredient away</b>, and everything else. BarManager also tells you which single bottle would unlock the most new drinks.</p>
+        <p lang="nl">Ruim 600 recepten van TheCocktailDB, vergeleken met de flessen die je echt hebt. Drie tabbladen: wat je kunt maken, wat <b>één ingrediënt verwijderd</b> is, en de rest. BarManager vertelt ook welke ene fles de meeste nieuwe drankjes oplevert.</p>
+        <ul class="ticks">
+          <li lang="en">Knows that Cointreau is a triple sec and a Highland Park is a Scotch</li>
+          <li lang="nl">Weet dat Cointreau een triple sec is en een Highland Park een Scotch</li>
+          <li lang="en">Substitutes are marked: an aged rum will do for light rum, but you will see it</li>
+          <li lang="nl">Vervangers worden aangegeven: een gerijpte rum kan voor lichte rum, maar je ziet het</li>
+          <li lang="en">Amounts in centilitres, the missing ones to your shopping list in one tap</li>
+          <li lang="nl">Hoeveelheden in centiliters, wat ontbreekt met één tik op de boodschappenlijst</li>
+        </ul>
+      </div>
+      <div class="stack-shots">
+        <figure class="shot"><img src="img/cocktails.webp" width="1280" height="860" alt="Cocktails you can make with your bottles" loading="lazy"></figure>
+        <figure class="shot offset"><img src="img/cocktail.webp" width="1280" height="860" alt="A Margarita: which bottle covers each ingredient and what is missing" loading="lazy"></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="feature alt">
+    <div class="wrap split reverse">
+      <div>
+        <p class="label"><span lang="en">Kitchen &amp; mixers</span><span lang="nl">Keuken &amp; mixers</span></p>
+        <h2><span lang="en">Lime juice? Brown sugar? <em>Tick it once.</em></span><span lang="nl">Limoensap? Bruine suiker? <em>Eén keer aanvinken.</em></span></h2>
+        <p lang="en">Juices, sodas, syrups, fruit, dairy and spices on one page, in plain language and sorted by how often recipes need them. Every cocktail then shows exactly what you are missing, so you do not have to check each recipe before you go shopping.</p>
+        <p lang="nl">Sappen, frisdrank, siropen, fruit, zuivel en kruiden op één pagina, in gewone taal en gesorteerd op hoe vaak recepten ze nodig hebben. Elke cocktail laat daarna precies zien wat je mist, zodat je niet elk recept hoeft na te lopen voor je boodschappen doet.</p>
+      </div>
+      <figure class="shot"><img src="img/pantry.webp" width="1280" height="860" alt="The kitchen and mixers page with groups of ingredients to tick" loading="lazy"></figure>
+    </div>
+  </section>
+
+  <section class="feature">
+    <div class="wrap split">
+      <div>
+        <p class="label"><span lang="en">Open bottles &amp; statistics</span><span lang="nl">Geopende flessen &amp; statistieken</span></p>
+        <h2><span lang="en">Know what is <em>still good</em></span><span lang="nl">Weet wat <em>nog goed</em> is</span></h2>
+        <p lang="en">Switch on fill levels per location and mark a bottle full, ¾, ½, ¼ or empty with one tap. Cream liqueurs, vermouth and wine get a warning before they turn. Out of it falls a set of statistics: litres per month, what goes fastest, how long a bottle lasts and what it was worth.</p>
+        <p lang="nl">Zet per locatie het bijhouden van de flesinhoud aan en markeer een fles met één tik als vol, ¾, ½, ¼ of leeg. Roomlikeuren, vermout en wijn krijgen een waarschuwing voordat ze bederven. Daaruit volgen statistieken: liters per maand, wat het snelst opgaat, hoe lang een fles meegaat en wat het waard was.</p>
+      </div>
+      <figure class="shot"><img src="img/stats.webp" width="1280" height="900" alt="Statistics: litres per month, bottles bought and what is drunk most" loading="lazy"></figure>
+    </div>
+  </section>
+
+  <section class="feature alt">
+    <div class="wrap split reverse">
+      <div>
+        <p class="label"><span lang="en">Shopping list</span><span lang="nl">Boodschappenlijst</span></p>
+        <h2><span lang="en">A list that <em>writes itself</em></span><span lang="nl">Een lijst die <em>zichzelf schrijft</em></span></h2>
+        <p lang="en">Bottles below their minimum, empty ones and an almost empty last bottle land on the list automatically, with the price and shop you paid last time. Tick things off in the store, share the list, and scanning a new bottle takes it off again.</p>
+        <p lang="nl">Flessen onder hun minimum, lege flessen en een bijna lege laatste fles komen vanzelf op de lijst, met de prijs en de winkel van de vorige keer. Afstrepen in de winkel, de lijst delen, en een nieuwe fles inscannen haalt hem er weer af.</p>
+      </div>
+      <figure class="shot"><img src="img/shopping.webp" width="1280" height="820" alt="The shopping list grouped by location" loading="lazy"></figure>
+    </div>
+  </section>
+
+  <section class="feature">
+    <div class="wrap split">
+      <div>
+        <p class="label"><span lang="en">Bar menu</span><span lang="nl">Barkaart</span></p>
+        <h2><span lang="en">A menu for your <em>guests</em></span><span lang="nl">Een kaart voor je <em>gasten</em></span></h2>
+        <p lang="en">Put a QR code on the bar. Guests see what is on the shelf and which cocktails you can make, with recipes, but without quantities or prices. Switch it off or make a new link whenever you like.</p>
+        <p lang="nl">Zet een QR-code op de bar. Gasten zien wat er op de plank staat en welke cocktails je kunt maken, met recept, maar zonder aantallen of prijzen. Zet hem uit of maak een nieuwe link wanneer je wilt.</p>
+      </div>
+      <figure class="phones two">
+        <img src="img/m-menu.webp" width="390" height="844" alt="The public bar menu on a phone, dark mode" loading="lazy">
+        <img src="img/m-cocktails.webp" width="390" height="844" alt="Classic cocktails on a phone, dark mode" loading="lazy">
+      </figure>
+    </div>
+  </section>
+
+  <section class="grid-section">
+    <div class="wrap">
+      <h2><span lang="en">And the rest of the <em>bar</em></span><span lang="nl">En de rest van de <em>bar</em></span></h2>
+      <div class="cards">
+        <article><h3><span lang="en">Locations &amp; people</span><span lang="nl">Locaties &amp; mensen</span></h3>
+          <p lang="en">Home bar, cellar, clubhouse: each with its own stock. Give others access per location.</p>
+          <p lang="nl">Thuisbar, kelder, clubhuis: elk met een eigen voorraad. Geef anderen per locatie toegang.</p></article>
+        <article><h3><span lang="en">Local AI, optional</span><span lang="nl">Lokale AI, optioneel</span></h3>
+          <p lang="en">A small model in Ollama (it runs on a Raspberry Pi 5) fills in brand, country, description and alcohol from the sources it found. It never guesses numbers.</p>
+          <p lang="nl">Een klein model in Ollama (het draait op een Raspberry Pi 5) vult merk, land, omschrijving en alcohol aan uit de gevonden bronnen. Getallen raadt het nooit.</p></article>
+        <article><h3><span lang="en">Value</span><span lang="nl">Waarde</span></h3>
+          <p lang="en">Price, purchase date and shop per bottle; the value of each location, and a CSV export.</p>
+          <p lang="nl">Prijs, aankoopdatum en winkel per fles; de waarde per locatie, en een CSV-export.</p></article>
+        <article><h3><span lang="en">Categories that fit</span><span lang="nl">Categorieën die kloppen</span></h3>
+          <p lang="en">Over twenty categories, from whisky and akvavit to bitters and garnish, and a bottle can be in two at once.</p>
+          <p lang="nl">Ruim twintig categorieën, van whisky en akvavit tot bitters en garnering, en een fles kan in twee tegelijk.</p></article>
+        <article><h3><span lang="en">Your data, your server</span><span lang="nl">Jouw data, jouw server</span></h3>
+          <p lang="en">One container with SQLite and the photos in a single folder. No account, no cloud, no tracking.</p>
+          <p lang="nl">Eén container met SQLite en de foto's in één map. Geen account, geen cloud, geen tracking.</p></article>
+        <article><h3><span lang="en">Light &amp; dark</span><span lang="nl">Licht &amp; donker</span></h3>
+          <p lang="en">Follows your phone, and is made for one-handed use behind the bar.</p>
+          <p lang="nl">Volgt je telefoon, en is gemaakt om met één hand achter de bar te gebruiken.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="install" id="install">
+    <div class="wrap split">
+      <div>
+        <p class="label"><span lang="en">Install</span><span lang="nl">Installeren</span></p>
+        <h2><span lang="en">Up and running in <em>a minute</em></span><span lang="nl">In <em>een minuut</em> aan de praat</span></h2>
+        <p lang="en">BarManager is one Docker container, for Raspberry Pi (arm64) and regular servers (amd64). Put a reverse proxy with HTTPS in front of it, because browsers only allow the camera on secure pages. The first admin is created from the environment; everything else is set in the app.</p>
+        <p lang="nl">BarManager is één Docker-container, voor de Raspberry Pi (arm64) en gewone servers (amd64). Zet er een reverse proxy met HTTPS voor, want browsers staan de camera alleen toe op beveiligde pagina's. De eerste beheerder komt uit de omgevingsvariabelen; de rest stel je in de app in.</p>
+        <div class="cta">
+          <a class="btn primary" href="https://github.com/Lexvdpoel/barmanager#installeren"><span lang="en">Full instructions</span><span lang="nl">Volledige uitleg</span></a>
+          <a class="btn ghost" href="https://github.com/Lexvdpoel/barmanager/blob/main/docker-compose.yml">docker-compose.yml</a>
+        </div>
+      </div>
+      <pre class="code" aria-label="docker-compose.yml"><code><span class="c"># docker-compose.yml</span>
+services:
+  barmanager:
+    image: ghcr.io/lexvdpoel/barmanager:latest
+    environment:
+      - TZ=Europe/Amsterdam
+      - BM_ADMIN_USERNAME=admin
+      - BM_ADMIN_PASSWORD=<span class="v">change-me</span>
+    volumes:
+      - ./appdata/barmanager:/config
+    ports:
+      - "8080:8080"
+    restart: unless-stopped</code><button class="copy" type="button" data-copy><span lang="en">Copy</span><span lang="nl">Kopiëren</span></button></pre>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div>
+      <a class="brand" href="./"><img src="icon.svg" alt="" width="24" height="24">BarManager</a>
+      <p class="muted"><span lang="en">Free and open source under the MIT licence.</span><span lang="nl">Gratis en open source onder de MIT-licentie.</span>
+        <span lang="en">Made by</span><span lang="nl">Gemaakt door</span> <a href="https://hollandpoel.com">HOLLANDPOEL</a>.</p>
+    </div>
+    <div class="foot-links">
+      <a href="https://github.com/Lexvdpoel/barmanager">GitHub</a>
+      <a href="https://github.com/Lexvdpoel/barmanager/issues"><span lang="en">Report a problem</span><span lang="nl">Probleem melden</span></a>
+      <a href="https://hollandpoel.com">hollandpoel.com</a>
+    </div>
+    <p class="credits muted"><span lang="en">Recipes and cocktail photos:</span><span lang="nl">Recepten en cocktailfoto's:</span> <a href="https://www.thecocktaildb.com">TheCocktailDB</a>.
+      <span lang="en">Product data:</span><span lang="nl">Productgegevens:</span> <a href="https://world.openfoodfacts.org">Open Food Facts</a> (ODbL), UPCitemdb, Wikipedia.
+      <span lang="en">Please drink responsibly.</span><span lang="nl">Geniet, maar drink met mate.</span></p>
+  </div>
+</footer>
+</body>
+</html>

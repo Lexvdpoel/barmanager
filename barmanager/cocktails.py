@@ -587,8 +587,12 @@ def pantry_items(db: Database) -> list[dict]:
         if spec.kind == "drank" or key in TRIVIAL or not key:
             continue
         key = canon(key)
-        d = counts.setdefault(key, {"key": key, "name": r["name"], "n": 0, "kind": spec.kind})
+        d = counts.setdefault(key, {"key": key, "name": r["name"], "n": 0, "kind": spec.kind, "_best": 0})
         d["n"] += r["n"]
+        # Show the most used spelling ("Lemon juice", not "Fresh Lemon Juice"), preferring the plain key.
+        score = r["n"] + (1000 if norm(r["name"]) == key else 0)
+        if score > d["_best"]:
+            d["name"], d["_best"] = r["name"], score
     have = {r["ingredient"]: r["always"] for r in db.all("SELECT ingredient, always FROM ingredient_prefs")}
     mode = pantry_mode(db)
     for d in counts.values():

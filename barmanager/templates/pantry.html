@@ -32,7 +32,7 @@
       {% for d in items %}
       <label class="pantry-item" id="k-{{ d.key|replace(' ', '-') }}">
         <input type="checkbox" name="have" value="{{ d.key }}" {{ 'checked' if d.have }}>
-        <span><span class="p-name">{{ d.nl|capitalize if d.nl else d.name }}</span>
+        <span><span class="p-name">{{ (d.nl[:1]|upper ~ d.nl[1:]) if d.nl else d.name }}</span>
           <span class="muted small">{% if d.nl %}{{ d.name }} · {% endif %}{{ d.n }} cocktail{{ 's' if d.n != 1 }}{% if d.bottles %} · ✓ {{ d.bottles|join(', ') }}{% endif %}</span></span>
         <button class="ghost small cart" formaction="/keuken/op-lijst" name="naam" value="{{ d.name }}" title="Op de boodschappenlijst" aria-label="{{ d.name }} op de boodschappenlijst">🛒</button>
       </label>
