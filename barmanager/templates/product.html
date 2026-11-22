@@ -1,28 +1,29 @@
 {% extends "base.html" %}
-{% block title %}{{ p.name or 'Onbekend product' }}{% endblock %}
+{% block title %}{{ p.name or _('Onbekend product') }}{% endblock %}
 {% block content %}
 {% set back = '/locaties/' ~ location.id if location else '/producten' %}
+{% set ai_title = _('Aangevuld door AI; controleer het even') %}
 <div class="pagehead">
   <div>
-    <div class="crumbs"><a href="/locaties">Locaties</a> /
+    <div class="crumbs"><a href="/locaties">{{ _("Locaties") }}</a> /
       {% if location %}<a href="/locaties/{{ location.id }}">{{ location.name }}</a> /{% endif %}</div>
-    <h1>{{ p.name or 'Onbekend product' }}</h1>
+    <h1>{{ p.name or _('Onbekend product') }}</h1>
     <div class="card-meta">
       {% for c in cats %}<span class="badge" style="--c: {{ cat_color(c) }}">{{ cat_label(c) }}</span>{% endfor %}
       <span class="mono muted">{{ p.barcode }}</span>
     </div>
   </div>
-  <div class="actions"><a class="button secondary" href="{{ back }}">Terug</a></div>
+  <div class="actions"><a class="button secondary" href="{{ back }}">{{ _("Terug") }}</a></div>
 </div>
 
 {% if p.lookup_status == 'pending' and p.next_lookup_at %}
-  <div class="flash info">Een bron was even niet bereikbaar; dit product wordt automatisch opnieuw opgezocht.</div>
+  <div class="flash info">{{ _("Een bron was even niet bereikbaar; dit product wordt automatisch opnieuw opgezocht.") }}</div>
 {% elif p.lookup_status == 'pending' %}
-  <div class="flash info" data-autorefresh="3">Dit product wordt op internet opgezocht…</div>
+  <div class="flash info" data-autorefresh="3">{{ _("Dit product wordt op internet opgezocht…") }}</div>
 {% elif p.lookup_status == 'not_found' %}
-  <div class="flash warn">Deze barcode is (nog) nergens gevonden. Vul de gegevens hieronder zelf in; daarna wordt automatisch naar een foto gezocht. Laat je het leeg, dan zoekt BarManager elke dag opnieuw.</div>
+  <div class="flash warn">{{ _("Deze barcode is (nog) nergens gevonden. Vul de gegevens hieronder zelf in; daarna wordt automatisch naar een foto gezocht. Laat je het leeg, dan zoekt BarManager elke dag opnieuw.") }}</div>
 {% elif p.lookup_status == 'guess' %}
-  <div class="flash warn">De naam is overgenomen uit zoekresultaten op internet. Controleer hem even.</div>
+  <div class="flash warn">{{ _("De naam is overgenomen uit zoekresultaten op internet. Controleer hem even.") }}</div>
 {% endif %}
 
 <div class="product-layout">
@@ -38,12 +39,12 @@
               {% if not loop.first %}
               <form method="post" action="/producten/{{ p.id }}/fotos/{{ ph.id }}/hoofdfoto">
                 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
-                <button class="ghost small" title="Als hoofdfoto gebruiken">★</button>
+                <button class="ghost small" title="{{ _('Als hoofdfoto gebruiken') }}">★</button>
               </form>
               {% endif %}
               <form method="post" action="/producten/{{ p.id }}/fotos/{{ ph.id }}/verwijderen">
                 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
-                <button class="ghost small" title="Verwijderen">✕</button>
+                <button class="ghost small" title="{{ _('Verwijderen') }}">✕</button>
               </form>
             </div>
           </div>
@@ -51,21 +52,21 @@
         </div>
       {% else %}
         <img class="photo-main ph" src="/static/bottle.svg" alt="">
-        <p class="muted small center">Nog geen foto.</p>
+        <p class="muted small center">{{ _("Nog geen foto.") }}</p>
       {% endif %}
 
       <details class="photo-add">
-        <summary>Foto toevoegen</summary>
+        <summary>{{ _("Foto toevoegen") }}</summary>
         <form method="post" action="/producten/{{ p.id }}/fotos" enctype="multipart/form-data" class="stack">
           <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
-          <label>Foto maken of kiezen <input type="file" name="file" accept="image/*" capture="environment"></label>
-          <label>of afbeeldingsadres (URL) <input name="url" type="url" placeholder="https://…"></label>
-          <button class="secondary">Toevoegen</button>
+          <label>{{ _("Foto maken of kiezen") }} <input type="file" name="file" accept="image/*" capture="environment"></label>
+          <label>{{ _("of afbeeldingsadres (URL)") }} <input name="url" type="url" placeholder="https://…"></label>
+          <button class="secondary">{{ _("Toevoegen") }}</button>
         </form>
       </details>
       <form method="post" action="/producten/{{ p.id }}/fotos/zoeken">
         <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
-        <button class="secondary wide" {{ 'disabled' if not p.name }}>Foto's zoeken op internet</button>
+        <button class="secondary wide" {{ 'disabled' if not p.name }}>{{ _("Foto's zoeken op internet") }}</button>
       </form>
     </div>
   </div>
@@ -73,63 +74,63 @@
   <div class="stack-lg">
     {% if location %}
     <form method="post" action="/locaties/{{ location.id }}/items/{{ p.id }}" class="panel stack">
-      <h2 class="flush">Voorraad in {{ location.name }}</h2>
+      <h2 class="flush">{{ _("Voorraad in {name}", name=location.name) }}</h2>
       {% if item %}
       <input type="hidden" name="csrf" value="{{ csrf }}">
       <div class="grid2">
-        <label>Aantal flessen <input name="quantity" type="number" min="0" value="{{ item.quantity }}"></label>
-        <label>Minimum <span class="muted small">(waarschuwing)</span> <input name="min_quantity" type="number" min="0" value="{{ item.min_quantity }}"></label>
+        <label>{{ _("Aantal flessen") }} <input name="quantity" type="number" min="0" value="{{ item.quantity }}"></label>
+        <label>{{ _("Minimum") }} <span class="muted small">({{ _("waarschuwing") }})</span> <input name="min_quantity" type="number" min="0" value="{{ item.min_quantity }}"></label>
       </div>
-      <label>Notities <input name="notes" value="{{ item.notes }}" maxlength="500" placeholder="bijv. plank 3, aangebroken"></label>
+      <label>{{ _("Notities") }} <input name="notes" value="{{ item.notes }}" maxlength="500" placeholder="{{ _('bijv. plank 3, aangebroken') }}"></label>
       <div class="grid3">
-        <label>Prijs per fles (€) <input name="price" inputmode="decimal" value="{{ ('%.2f'|format(item.price)).replace('.', ',') if item.price is not none else '' }}" placeholder="24,99"></label>
-        <label>Gekocht op <input name="bought_at" type="date" value="{{ item.bought_at }}"></label>
-        <label>Winkel <input name="shop" value="{{ item.shop }}" maxlength="80" placeholder="bijv. Gall &amp; Gall"></label>
+        <label>{{ _("Prijs per fles (€)") }} <input name="price" inputmode="decimal" value="{{ (('%.2f'|format(item.price)) if lang == 'en' else ('%.2f'|format(item.price)).replace('.', ',')) if item.price is not none else '' }}" placeholder="{{ '24.99' if lang == 'en' else '24,99' }}"></label>
+        <label>{{ _("Gekocht op") }} <input name="bought_at" type="date" value="{{ item.bought_at }}"></label>
+        <label>{{ _("Winkel") }} <input name="shop" value="{{ item.shop }}" maxlength="80" placeholder="{{ _('bijv. Gall & Gall') }}"></label>
       </div>
-      {% if item_value %}<p class="muted small">Waarde van wat er staat: <b>{{ item_value|euro }}</b></p>{% endif %}
+      {% if item_value %}<p class="muted small">{{ _("Waarde van wat er staat:") }} <b>{{ item_value|euro }}</b></p>{% endif %}
       <div class="row">
-        <button>Opslaan</button>
+        <button>{{ _("Opslaan") }}</button>
       </div>
       {% else %}
-      <p class="muted">Dit product staat niet in deze locatie.</p>
+      <p class="muted">{{ _("Dit product staat niet in deze locatie.") }}</p>
       {% endif %}
     </form>
     {% if item %}
     <form method="post" action="/locaties/{{ location.id }}/items/{{ p.id }}/verwijderen" class="right"
-          data-confirm="Product uit {{ location.name }} verwijderen?">
+          data-confirm="{{ _('Product uit {name} verwijderen?', name=location.name) }}">
       <input type="hidden" name="csrf" value="{{ csrf }}">
-      <button class="ghost small danger">Uit deze locatie verwijderen</button>
+      <button class="ghost small danger">{{ _("Uit deze locatie verwijderen") }}</button>
     </form>
     {% endif %}
     {% if item and track %}
     <div class="panel stack" id="inhoud">
-      <h2 class="flush">Geopende fles</h2>
+      <h2 class="flush">{{ _("Geopende fles") }}</h2>
       {% if item.quantity <= 0 %}
-        <p class="muted">Geen fles op voorraad.</p>
+        <p class="muted">{{ _("Geen fles op voorraad.") }}</p>
       {% else %}
         {% if open %}
         <div class="bottle-state">
           <span class="level big"><span style="height: {{ open.level }}%"></span></span>
           <div>
-            <b>Nog ongeveer {{ open.level }}%</b>
-            <div class="muted small">Open sinds {{ open.days }} dag{{ 'en' if open.days != 1 }}{% if open.limit %};
-              houdbaar ±{{ open.limit }} dagen na openen{% endif %}</div>
-            {% if open.state == 'over' %}<div class="bad small"><b>Waarschijnlijk niet meer goed.</b></div>
-            {% elif open.state == 'bijna' %}<div class="warn small">Nog ±{{ open.left }} dagen goed.</div>{% endif %}
+            <b>{{ _("Nog ongeveer {level}%", level=open.level) }}</b>
+            <div class="muted small">{{ _n("Open sinds {n} dag", "Open sinds {n} dagen", open.days) }}{% if open.limit %};
+              {{ _("houdbaar ±{n} dagen na openen", n=open.limit) }}{% endif %}</div>
+            {% if open.state == 'over' %}<div class="bad small"><b>{{ _("Waarschijnlijk niet meer goed.") }}</b></div>
+            {% elif open.state == 'bijna' %}<div class="warn small">{{ _("Nog ±{n} dagen goed.", n=open.left) }}</div>{% endif %}
           </div>
         </div>
         {% else %}
-        <p class="muted">{{ 'De fles is' if item.quantity == 1 else 'Alle ' ~ item.quantity ~ ' flessen zijn' }} nog dicht. Open je er een, kies dan hoe vol hij nog is:</p>
+        <p class="muted">{{ _n("De fles is nog dicht. Open je hem, kies dan hoe vol hij nog is:", "Alle {n} flessen zijn nog dicht. Open je er een, kies dan hoe vol hij nog is:", item.quantity) }}</p>
         {% endif %}
         <form method="post" action="/locaties/{{ location.id }}/items/{{ p.id }}/niveau" class="levels">
           <input type="hidden" name="csrf" value="{{ csrf }}">
           {% for v, label in LEVELS %}
-          <button name="level" value="{{ v }}" class="{{ 'on' if open and open.level == v else 'secondary' }}">{{ label }}</button>
+          <button name="level" value="{{ v }}" class="{{ 'on' if open and open.level == v else 'secondary' }}">{{ _(label) }}</button>
           {% endfor %}
-          <button name="level" value="0" class="secondary danger-text">Leeg</button>
-          {% if open %}<button name="level" value="dicht" class="ghost small">Toch nog dicht</button>{% endif %}
+          <button name="level" value="0" class="secondary danger-text">{{ _("Leeg") }}</button>
+          {% if open %}<button name="level" value="dicht" class="ghost small">{{ _("Toch nog dicht") }}</button>{% endif %}
         </form>
-        <p class="muted small">"Leeg" haalt de fles van de voorraad.{% if item.quantity > 1 %} Daarna staat de volgende fles nog dicht.{% endif %}</p>
+        <p class="muted small">{{ _('"Leeg" haalt de fles van de voorraad.') }}{% if item.quantity > 1 %} {{ _("Daarna staat de volgende fles nog dicht.") }}{% endif %}</p>
       {% endif %}
     </div>
     {% endif %}
@@ -138,91 +139,91 @@
     <form method="post" action="/producten/{{ p.id }}/boodschappen" class="row right-row">
       <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
       {% if on_list %}
-      <span class="muted small">Staat op de <a href="/boodschappen">boodschappenlijst</a>.</span>
-      <button name="weg" value="1" class="ghost small">Eraf halen</button>
+      <span class="muted small">{{ _("Staat op de") }} <a href="/boodschappen">{{ _("boodschappenlijst") }}</a>.</span>
+      <button name="weg" value="1" class="ghost small">{{ _("Eraf halen") }}</button>
       {% else %}
-      <button class="secondary small">Zet op boodschappenlijst</button>
+      <button class="secondary small">{{ _("Zet op boodschappenlijst") }}</button>
       {% endif %}
     </form>
     {% endif %}
 
     <form method="post" action="/producten/{{ p.id }}" class="panel stack">
-      <h2 class="flush">Productgegevens</h2>
+      <h2 class="flush">{{ _("Productgegevens") }}</h2>
       <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
-      <label>Naam {% if "name" in ai_fields and p.lookup_status == 'guess' %}<span class="ai-tag" title="Naam door AI uit zoekresultaten gehaald; controleer het even">AI</span>{% endif %} <input name="name" value="{{ p.name }}" maxlength="150" {{ 'autofocus' if not p.name and p.lookup_status != 'pending' }}></label>
+      <label>{{ _("Naam") }} {% if "name" in ai_fields and p.lookup_status == 'guess' %}<span class="ai-tag" title="{{ _('Naam door AI uit zoekresultaten gehaald; controleer het even') }}">AI</span>{% endif %} <input name="name" value="{{ p.name }}" maxlength="150" {{ 'autofocus' if not p.name and p.lookup_status != 'pending' }}></label>
       <div class="grid2">
-        <label>Merk {% if "brand" in ai_fields %}<span class="ai-tag" title="Aangevuld door AI; controleer het even">AI</span>{% endif %} <input name="brand" value="{{ p.brand }}" maxlength="100"></label>
-        <label>Hoofdcategorie {% if "category" in ai_fields %}<span class="ai-tag" title="Aangevuld door AI; controleer het even">AI</span>{% endif %}
+        <label>{{ _("Merk") }} {% if "brand" in ai_fields %}<span class="ai-tag" title="{{ ai_title }}">AI</span>{% endif %} <input name="brand" value="{{ p.brand }}" maxlength="100"></label>
+        <label>{{ _("Hoofdcategorie") }} {% if "category" in ai_fields %}<span class="ai-tag" title="{{ ai_title }}">AI</span>{% endif %}
           <select name="category">
-            {% for key, label, color in CATEGORIES %}<option value="{{ key }}" {{ 'selected' if key == p.category }}>{{ label }}</option>{% endfor %}
+            {% for key, label, color in CATEGORIES %}<option value="{{ key }}" {{ 'selected' if key == p.category }}>{{ _(label) }}</option>{% endfor %}
           </select>
         </label>
-        <label>Inhoud (ml) <input name="volume_ml" type="number" min="1" value="{{ p.volume_ml or '' }}" placeholder="700"></label>
-        <label>Alcohol (%) {% if "abv" in ai_fields %}<span class="ai-tag" title="Aangevuld door AI uit de bronnen; controleer het even">AI</span>{% endif %} <input name="abv" inputmode="decimal" value="{{ '%g'|format(p.abv) if p.abv is not none else '' }}" placeholder="40"></label>
-        <label>Land van herkomst {% if "country" in ai_fields %}<span class="ai-tag" title="Aangevuld door AI; controleer het even">AI</span>{% endif %} <input name="country" value="{{ p.country }}" maxlength="60" placeholder="bijv. Schotland"></label>
+        <label>{{ _("Inhoud (ml)") }} <input name="volume_ml" type="number" min="1" value="{{ p.volume_ml or '' }}" placeholder="700"></label>
+        <label>{{ _("Alcohol (%)") }} {% if "abv" in ai_fields %}<span class="ai-tag" title="{{ _('Aangevuld door AI uit de bronnen; controleer het even') }}">AI</span>{% endif %} <input name="abv" inputmode="decimal" value="{{ p.abv|g if p.abv is not none else '' }}" placeholder="40"></label>
+        <label>{{ _("Land van herkomst") }} {% if "country" in ai_fields %}<span class="ai-tag" title="{{ ai_title }}">AI</span>{% endif %} <input name="country" value="{{ p.country }}" maxlength="60" placeholder="{{ _('bijv. Schotland') }}"></label>
       </div>
       {% if track %}
-      <label>Houdbaar na openen (dagen) <span class="muted small">leeg = standaard{% if default_shelf %} ({{ default_shelf }} dagen){% else %} (onbeperkt){% endif %}, 0 = onbeperkt</span>
+      <label>{{ _("Houdbaar na openen (dagen)") }} <span class="muted small">{% if default_shelf %}{{ _("leeg = standaard ({n} dagen), 0 = onbeperkt", n=default_shelf) }}{% else %}{{ _("leeg = standaard (onbeperkt), 0 = onbeperkt") }}{% endif %}</span>
         <input name="shelf_days" type="number" min="0" max="3650" value="{{ p.shelf_days if p.shelf_days is not none else '' }}"></label>
       {% endif %}
       <fieldset class="cat-extra">
-        <legend>Valt ook onder {% if "extra" in ai_fields %}<span class="ai-tag" title="Aangevuld op basis van de omschrijving">AI</span>{% endif %} <span class="muted small">(bijv. Jim Beam Peach: whisky én likeur)</span></legend>
+        <legend>{{ _("Valt ook onder") }} {% if "extra" in ai_fields %}<span class="ai-tag" title="{{ _('Aangevuld op basis van de omschrijving') }}">AI</span>{% endif %} <span class="muted small">({{ _("bijv. Jim Beam Peach: whisky én likeur") }})</span></legend>
         {% for key, label, color in CATEGORIES %}{% if key != 'overig' %}
         <label class="check-chip" style="--c: {{ color }}"><input type="checkbox" name="extra" value="{{ key }}"
-          {{ 'checked' if key in cats[1:] }}> {{ label }}</label>
+          {{ 'checked' if key in cats[1:] }}> {{ _(label) }}</label>
         {% endif %}{% endfor %}
       </fieldset>
-      <label>Omschrijving {% if "description" in ai_fields %}<span class="ai-tag" title="Aangevuld door AI; controleer het even">AI</span>{% endif %} <textarea name="description" rows="3" maxlength="2000">{{ p.description }}</textarea></label>
+      <label>{{ _("Omschrijving") }} {% if "description" in ai_fields %}<span class="ai-tag" title="{{ ai_title }}">AI</span>{% endif %} <textarea name="description" rows="3" maxlength="2000">{{ p.description }}</textarea></label>
       <div class="row">
-        <button>Opslaan</button>
+        <button>{{ _("Opslaan") }}</button>
         <span class="muted small">
-          {% if p.category_locked %}Categorieën handmatig gekozen.{% else %}Categorieën automatisch bepaald.{% endif %}
-          {% if p.source %}Bron: {{ p.source }}.{% endif %}
+          {% if p.category_locked %}{{ _("Categorieën handmatig gekozen.") }}{% else %}{{ _("Categorieën automatisch bepaald.") }}{% endif %}
+          {% if p.source %}{{ _("Bron: {source}.", source=p.source) }}{% endif %}
         </span>
       </div>
     </form>
     <div class="row right-row">
       {% if ai.enricher.enabled and p.name %}
       <span class="muted small">
-        {% if ai.busy_with == p.id %}De AI is dit product nu aan het aanvullen…
-        {% elif p.ai_for != p.name and p.ai_attempts < 3 %}Staat in de wachtrij voor de AI.
+        {% if ai.busy_with == p.id %}{{ _("De AI is dit product nu aan het aanvullen…") }}
+        {% elif p.ai_for != p.name and p.ai_attempts < 3 %}{{ _("Staat in de wachtrij voor de AI.") }}
         {% endif %}
       </span>
       <form method="post" action="/producten/{{ p.id }}/ai">
         <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
-        <button class="ghost small">Lege velden aanvullen met AI</button>
+        <button class="ghost small">{{ _("Lege velden aanvullen met AI") }}</button>
       </form>
       {% endif %}
       <form method="post" action="/producten/{{ p.id }}/opnieuw-opzoeken">
         <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
-        <button class="ghost small">Opnieuw opzoeken op internet</button>
+        <button class="ghost small">{{ _("Opnieuw opzoeken op internet") }}</button>
       </form>
     </div>
 
     {% if can_delete %}
     <form method="post" action="/producten/{{ p.id }}/verwijderen" class="right"
-          data-confirm="'{{ p.name or p.barcode }}' helemaal verwijderen? Het verdwijnt uit alle locaties, inclusief foto's en geschiedenis.">
+          data-confirm="{{ _("'{name}' helemaal verwijderen? Het verdwijnt uit alle locaties, inclusief foto's en geschiedenis.", name=p.name or p.barcode) }}">
       <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="loc" value="{{ location.id if location }}">
-      <button class="ghost small danger">Product helemaal verwijderen</button>
+      <button class="ghost small danger">{{ _("Product helemaal verwijderen") }}</button>
     </form>
     {% endif %}
 
     {% if n_cocktails %}
     <a class="panel cocktail-link" href="/cocktails?fles={{ p.id }}{{ '&loc=' ~ location.id if location }}">
       <span class="big-emoji" aria-hidden="true">🍸</span>
-      <span><b>{{ n_cocktails }} cocktail{{ 's' if n_cocktails != 1 }}</b> met deze fles<br>
-      <span class="muted small">Bekijk wat je ermee kunt maken</span></span>
+      <span><b>{{ _n("{n} cocktail", "{n} cocktails", n_cocktails) }}</b> {{ _("met deze fles") }}<br>
+      <span class="muted small">{{ _("Bekijk wat je ermee kunt maken") }}</span></span>
     </a>
     {% endif %}
 
     {% if history %}
     <div class="panel">
-      <h2 class="flush">Laatste wijzigingen</h2>
+      <h2 class="flush">{{ _("Laatste wijzigingen") }}</h2>
       <table class="mini">
         {% for m in history %}
         <tr>
           <td class="num {{ 'pos' if m.delta > 0 else 'neg' }}">{{ '%+d'|format(m.delta) }}</td>
-          <td>{{ m.reason }}</td>
+          <td>{{ _(m.reason) }}</td>
           <td class="muted">{{ m.username or '?' }}</td>
           <td class="muted" data-ts="{{ m.created_at }}"></td>
         </tr>

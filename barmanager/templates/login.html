@@ -1,15 +1,15 @@
 {% extends "base.html" %}
-{% block title %}Inloggen{% endblock %}
+{% block title %}{{ _("Inloggen") }}{% endblock %}
 {% block main_class %}narrow{% endblock %}
 {% block content %}
 <div class="login">
   <img src="/static/icon.svg" alt="" width="56" height="56">
   <h1>BarManager</h1>
-  <p class="muted">Drankvoorraad bijhouden met de barcodescanner.</p>
+  <p class="muted">{{ _("Drankvoorraad bijhouden met de barcodescanner.") }}</p>
   <form method="post" action="/login" class="panel stack">
-    <label>Gebruikersnaam <input name="username" value="{{ username or '' }}" autocomplete="username" autofocus required></label>
-    <label>Wachtwoord <input name="password" type="password" autocomplete="current-password" required></label>
-    <button>Inloggen</button>
+    <label>{{ _("Gebruikersnaam") }} <input name="username" value="{{ username or '' }}" autocomplete="username" autofocus required></label>
+    <label>{{ _("Wachtwoord") }} <input name="password" type="password" autocomplete="current-password" required></label>
+    <button>{{ _("Inloggen") }}</button>
   </form>
 </div>
 {% endblock %}

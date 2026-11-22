@@ -8,7 +8,8 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 
-from . import bar, categories, cocktails, service
+from . import bar, categories, cocktails, i18n, service
+from .i18n import _, _n
 from .auth import check_csrf, db_of, require_admin, require_user
 from .web import _int, get_location, get_product, redirect, render, safe_back
 
@@ -87,7 +88,7 @@ def cocktails_page(request: Request, user=Depends(require_user), loc: int | None
         for c in shown:
             # "Light rum", "White rum" and "Rum" are all just a bottle of rum.
             spec = cocktails.spec_for(c["missing"][0])
-            name = categories.label(spec.cats[0]) if spec.all_cats and spec.cats else c["missing"][0]
+            name = _(categories.label(spec.cats[0])) if spec.all_cats and spec.cats else c["missing"][0]
             unlock[name] = unlock.get(name, 0) + 1
 
     def url_with(**kw):
@@ -123,8 +124,9 @@ def _ingredient_rows(db, c: dict, matcher: cocktails.Matcher) -> list[dict]:
     for ing in c["ingredients"]:
         st = matcher.resolve(ing["name"])
         rows.append({"name": ing["name"], "key": cocktails.canon(cocktails.norm(ing["name"])),
-                     "nl": cocktails.NL.get(cocktails.canon(cocktails.norm(ing["name"])), "") if st.kind != "drank" else "",
-                     "measure": cocktails.measure_nl(ing["measure"]), "measure_orig": ing["measure"],
+                     "nl": cocktails.NL.get(cocktails.canon(cocktails.norm(ing["name"])), "")
+                     if st.kind != "drank" and i18n.get_lang() == "nl" else "",
+                     "measure": cocktails.measure_local(ing["measure"]), "measure_orig": ing["measure"],
                      "state": st.state, "kind": st.kind, "products": st.products})
     return rows
 
@@ -144,7 +146,7 @@ def cocktail_page(request: Request, cid: str, user=Depends(require_user), loc: i
 def cocktails_sync(request: Request, user=Depends(require_admin), csrf: str = Form("")):
     check_csrf(request, csrf)
     request.app.state.cocktail_sync.now()
-    return redirect("/cocktails?toon=alles", msg="Cocktails worden opgehaald; dat duurt een paar minuten.")
+    return redirect("/cocktails?toon=alles", msg=_("Cocktails worden opgehaald; dat duurt een paar minuten."))
 
 
 @router.get("/cocktails-ingredient", response_class=HTMLResponse)
@@ -178,7 +180,7 @@ def ingredient_save(request: Request, user=Depends(require_user), csrf: str = Fo
     db = db_of(request)
     key = cocktails.norm(naam)
     if not key:
-        return redirect("/cocktails", err="Onbekend ingrediënt.")
+        return redirect("/cocktails", err=_("Onbekend ingrediënt."))
     with db.tx():
         db.run("INSERT INTO ingredient_prefs(ingredient, always) VALUES (?,?) "
                "ON CONFLICT(ingredient) DO UPDATE SET always=excluded.always", key, 1 if always else 0)
@@ -193,7 +195,7 @@ def ingredient_save(request: Request, user=Depends(require_user), csrf: str = Fo
     if _int(loc):
         params["loc"] = _int(loc)
     return redirect("/cocktails-ingredient?" + urlencode({k: v for k, v in params.items() if v}),
-                    msg="Opgeslagen.")
+                    msg=_("Opgeslagen."))
 
 
 @router.post("/cocktails/{cid}/op-lijst")
@@ -206,12 +208,12 @@ def cocktail_missing_to_list(request: Request, cid: str, user=Depends(require_us
                                               "AND kind='handmatig' AND created_by=?", user["id"])}
     added = 0
     for n in naam[:15]:
-        label = f"{n} (voor {c['name']})"
+        label = _("{item} (voor {cocktail})", item=n, cocktail=c["name"])
         if n.strip() and label.lower() not in have:
             bar.add_item(db, user, None, None, label)
             added += 1
     return redirect(safe_back(back, f"/cocktails/{cid}"),
-                    msg=f"{added} op de boodschappenlijst gezet." if added else "Stond al op de lijst.")
+                    msg=_("{n} op de boodschappenlijst gezet.", n=added) if added else _("Stond al op de lijst."))
 
 
 # ---- kitchen & mixers ----------------------------------------------------------------------------
@@ -235,9 +237,9 @@ def pantry_save(request: Request, user=Depends(require_user), csrf: str = Form("
     db = db_of(request)
     if actie == "uit":
         db.run("DELETE FROM kv WHERE key='pantry'")
-        return redirect("/keuken", msg="Uitgezet: verse ingrediënten, sap en frisdrank tellen weer als aanwezig.")
+        return redirect("/keuken", msg=_("Uitgezet: verse ingrediënten, sap en frisdrank tellen weer als aanwezig."))
     n, total = _save_pantry(db, have)
-    return redirect("/keuken", msg=f"Opgeslagen: {n} van de {total} dingen in huis.")
+    return redirect("/keuken", msg=_("Opgeslagen: {n} van de {total} dingen in huis.", n=n, total=total))
 
 
 def _save_pantry(db, have: list[str]) -> tuple[int, int]:
@@ -258,13 +260,13 @@ def pantry_to_list(request: Request, user=Depends(require_user), csrf: str = For
     db = db_of(request)
     _save_pantry(db, have)         # the cart button submits the whole form: keep the ticks too
     if naam.strip():
-        label = cocktails.NL.get(cocktails.norm(naam)) or naam
+        label = (cocktails.NL.get(cocktails.canon(cocktails.norm(naam))) if i18n.get_lang() == "nl" else None) or naam
         label = label[:1].upper() + label[1:]
         exists = db.one("SELECT 1 FROM shopping_items WHERE product_id IS NULL AND kind='handmatig' "
                         "AND created_by=? AND lower(name)=lower(?)", user["id"], label)
         if not exists:
             bar.add_item(db, user, None, None, label)
-    return redirect("/keuken", msg=f"'{naam}' staat op de boodschappenlijst.")
+    return redirect("/keuken", msg=_("'{name}' staat op de boodschappenlijst.", name=naam))
 
 
 # ---- shopping list -------------------------------------------------------------------------------
@@ -278,7 +280,7 @@ def shopping_page(request: Request, user=Depends(require_user)):
 def shopping_add(request: Request, user=Depends(require_user), csrf: str = Form(""), name: str = Form("")):
     check_csrf(request, csrf)
     if not name.strip():
-        return redirect("/boodschappen", err="Typ wat er op de lijst moet.")
+        return redirect("/boodschappen", err=_("Typ wat er op de lijst moet."))
     bar.add_item(db_of(request), user, None, None, name)
     return redirect("/boodschappen")
 
@@ -315,9 +317,9 @@ def product_to_list(request: Request, pid: int, user=Depends(require_user), csrf
     back = f"/producten/{pid}" + (f"?loc={lid}" if lid else "")
     if weg:
         db.run("DELETE FROM shopping_items WHERE kind='handmatig' AND product_id=? AND location_id IS ?", pid, lid)
-        return redirect(back, msg="Van de boodschappenlijst gehaald.")
+        return redirect(back, msg=_("Van de boodschappenlijst gehaald."))
     bar.add_item(db, user, lid, pid)
-    return redirect(back, msg="Op de boodschappenlijst gezet.")
+    return redirect(back, msg=_("Op de boodschappenlijst gezet."))
 
 
 # ---- fill levels & statistics --------------------------------------------------------------------
@@ -329,10 +331,10 @@ def set_level(request: Request, lid: int, pid: int, user=Depends(require_user), 
     get_product(request, pid)
     db = db_of(request)
     if not service.tracks_levels(db, lid):
-        return redirect(f"/producten/{pid}?loc={lid}", err="Flesinhoud bijhouden staat uit voor deze locatie.")
+        return redirect(f"/producten/{pid}?loc={lid}", err=_("Flesinhoud bijhouden staat uit voor deze locatie."))
     value = None if level == "dicht" else _int(level, None, 0, 100)
     if value is None and level != "dicht":
-        return redirect(f"/producten/{pid}?loc={lid}", err="Ongeldige inhoud.")
+        return redirect(f"/producten/{pid}?loc={lid}", err=_("Ongeldige inhoud."))
     msg = service.set_level(db, lid, pid, value, user["id"])
     return redirect(safe_back(back, f"/producten/{pid}?loc={lid}"), msg=msg)
 
@@ -344,7 +346,7 @@ def toggle_tracking(request: Request, lid: int, user=Depends(require_user), csrf
     get_location(request, lid, user)
     db_of(request).run("UPDATE locations SET track_levels=? WHERE id=?", 1 if aan else 0, lid)
     return redirect(f"/locaties/{lid}/instellingen",
-                    msg="Flesinhoud bijhouden staat aan." if aan else "Flesinhoud bijhouden staat uit.")
+                    msg=_("Flesinhoud bijhouden staat aan.") if aan else _("Flesinhoud bijhouden staat uit."))
 
 
 @router.get("/locaties/{lid}/statistieken", response_class=HTMLResponse)
@@ -352,7 +354,7 @@ def stats_page(request: Request, lid: int, user=Depends(require_user), maanden: 
     loc = get_location(request, lid, user)
     if not loc["track_levels"]:
         return redirect(f"/locaties/{lid}/instellingen",
-                        err="Statistieken werken samen met 'Flesinhoud bijhouden'; zet dat eerst aan.")
+                        err=_("Statistieken werken samen met 'Flesinhoud bijhouden'; zet dat eerst aan."))
     maanden = maanden if maanden in (3, 6, 12, 24) else 6
     db = db_of(request)
     return render(request, "stats.html", loc=loc, s=bar.stats(db, lid, maanden), maanden=maanden,
@@ -375,10 +377,10 @@ def menu_toggle(request: Request, lid: int, user=Depends(require_user), csrf: st
     db = db_of(request)
     if actie == "uit":
         db.run("UPDATE locations SET menu_token=NULL WHERE id=?", lid)
-        msg = "Barkaart uitgezet; de oude link werkt niet meer."
+        msg = _("Barkaart uitgezet; de oude link werkt niet meer.")
     else:
         db.run("UPDATE locations SET menu_token=? WHERE id=?", secrets.token_urlsafe(12), lid)
-        msg = "Nieuwe link voor de barkaart gemaakt." if actie == "nieuw" else "Barkaart staat aan."
+        msg = _("Nieuwe link voor de barkaart gemaakt.") if actie == "nieuw" else _("Barkaart staat aan.")
     return redirect(f"/locaties/{lid}/instellingen#barkaart", msg=msg)
 
 

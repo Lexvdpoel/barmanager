@@ -2,6 +2,7 @@
 // keyboard-wedge / handheld scanners via the text field.
 (function () {
   "use strict";
+  const t = window.BM.t;
   const root = document.getElementById("scanner");
   if (!root) return;
   const lid = root.dataset.location;
@@ -80,11 +81,11 @@
   function statusText(p) {
     if (p.warning) return p.warning;
     switch (p.status) {
-      case "pending": return "Zoeken op internet…";
-      case "found": return "Gevonden" + (p.source ? " via " + p.source : "");
-      case "guess": return "Gevonden via webzoektocht, even controleren";
-      case "not_found": return p.name ? "Handmatig ingevuld" : "Niet gevonden, vul zelf in";
-      default: return p.created ? "Nieuw" : "Bekend product";
+      case "pending": return t("Zoeken op internet…");
+      case "found": return p.source ? t("Gevonden via {source}", { source: p.source }) : t("Gevonden");
+      case "guess": return t("Gevonden via webzoektocht, even controleren");
+      case "not_found": return p.name ? t("Handmatig ingevuld") : t("Niet gevonden, vul zelf in");
+      default: return p.created ? t("Nieuw") : t("Bekend product");
     }
   }
   function renderItem(el, p) {
@@ -102,15 +103,15 @@
       </div>
       <div class="delta ${delta > 0 ? "pos" : delta < 0 ? "neg" : ""}">
         ${delta > 0 ? "+" + delta : delta}
-        <small>nu ${esc(p.quantity)}</small>
-        ${delta ? `<button type="button" class="ghost undo">Ongedaan</button>` : ""}
+        <small>${esc(t("nu {n}", { n: p.quantity }))}</small>
+        ${delta ? `<button type="button" class="ghost undo">${esc(t("Ongedaan"))}</button>` : ""}
       </div>`;
     const undo = el.querySelector(".undo");
     if (undo) undo.addEventListener("click", async () => {
       undo.disabled = true;
       try {
         const q = await window.BM.api(`/api/locaties/${lid}/items/${p.id}/aanpassen`, { delta: -delta });
-        el.querySelector(".delta").innerHTML = `0 <small>nu ${esc(q.quantity)} · ongedaan</small>`;
+        el.querySelector(".delta").innerHTML = `0 <small>${esc(t("nu {n} · ongedaan", { n: q.quantity }))}</small>`;
       } catch (err) { showToast(err.message); undo.disabled = false; }
     });
   }
@@ -122,7 +123,7 @@
         Object.assign(p, q);
         renderItem(el, p);
         if (q.status === "pending") poll(el, p, tries + 1);
-        else if (q.status === "not_found" && !q.name) showToast("Onbekend product, tik erop om het in te vullen");
+        else if (q.status === "not_found" && !q.name) showToast(t("Onbekend product, tik erop om het in te vullen"));
         else if (!q.image && q.images === 0) setTimeout(() => refreshImage(el, p), 3000);
       } catch (e) { poll(el, p, tries + 1); }
     }, 1500);
@@ -207,7 +208,7 @@
       if (!formats.includes("ean_13")) return null;
       const det = new window.BarcodeDetector({ formats });
       return {
-        name: "ingebouwde scanner",
+        name: t("ingebouwde scanner"),
         // The native detector finds codes in any orientation, so give it the whole frame.
         decode: async () => {
           const r = await det.detect(video);
@@ -223,7 +224,7 @@
       const s = document.createElement("script");
       s.src = "/static/vendor/zxing.min.js?v=0.21.3";
       s.onload = () => resolve(window.ZXing);
-      s.onerror = () => reject(new Error("Scanbibliotheek kon niet laden"));
+      s.onerror = () => reject(new Error(t("Scanbibliotheek kon niet laden")));
       document.head.appendChild(s);
     });
   }
@@ -280,9 +281,9 @@
 
   // ---- camera ------------------------------------------------------------------------
   if (!window.isSecureContext) {
-    camNote.textContent = "De camera werkt alleen via https. Open BarManager via je https-adres, of gebruik het tekstveld met een handscanner.";
+    camNote.textContent = t("De camera werkt alleen via https. Open BarManager via je https-adres, of gebruik het tekstveld met een handscanner.");
   } else if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    camNote.textContent = "Deze browser geeft geen toegang tot de camera.";
+    camNote.textContent = t("Deze browser geeft geen toegang tot de camera.");
     camToggle.disabled = true;
   }
 
@@ -292,7 +293,7 @@
       if (devices.length < 2) { camSelect.hidden = true; return; }
       const current = stream && stream.getVideoTracks()[0] && stream.getVideoTracks()[0].getSettings().deviceId;
       camSelect.innerHTML = devices.map((d, i) =>
-        `<option value="${esc(d.deviceId)}" ${d.deviceId === current ? "selected" : ""}>${esc(d.label || "Camera " + (i + 1))}</option>`).join("");
+        `<option value="${esc(d.deviceId)}" ${d.deviceId === current ? "selected" : ""}>${esc(d.label || t("Camera {n}", { n: i + 1 }))}</option>`).join("");
       camSelect.hidden = false;
     } catch (e) { camSelect.hidden = true; }
   }
@@ -344,7 +345,7 @@
       await video.play();
       running = true;
       resume();
-      camToggle.textContent = "Camera stoppen";
+      camToggle.textContent = t("Camera stoppen");
       try { localStorage.setItem("bm-camera", "on"); } catch (e) { /* private mode */ }
       listCameras();
       setupTrack();
@@ -353,7 +354,7 @@
       frames = 0;
       clearInterval(statusTimer);
       statusTimer = setInterval(() => {
-        camStatus.textContent = `${engine.name} · ${video.videoWidth}×${video.videoHeight} · ${frames} beelden/s`;
+        camStatus.textContent = `${engine.name} · ${video.videoWidth}×${video.videoHeight} · ${t("{n} beelden/s", { n: frames })}`;
         frames = 0;
       }, 1000);
       const tick = async () => {
@@ -371,8 +372,8 @@
     } catch (err) {
       stop();
       camNote.textContent = err && err.name === "NotAllowedError"
-        ? "Geen toestemming voor de camera. Sta camera-toegang toe in je browser en probeer opnieuw."
-        : "Camera starten mislukt: " + (err && err.message ? err.message : err);
+        ? t("Geen toestemming voor de camera. Sta camera-toegang toe in je browser en probeer opnieuw.")
+        : t("Camera starten mislukt: {error}", { error: err && err.message ? err.message : err });
     } finally {
       camToggle.disabled = false;
     }
@@ -387,7 +388,7 @@
     video.srcObject = null;
     videoWrap.hidden = true; camOff.hidden = false;
     zoomWrap.hidden = true; torchBtn.hidden = true; torchOn = false;
-    camToggle.textContent = "Camera starten";
+    camToggle.textContent = t("Camera starten");
     if (remember) { try { localStorage.setItem("bm-camera", "off"); } catch (e) { /* ignore */ } }
   }
 

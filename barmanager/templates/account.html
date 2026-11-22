@@ -1,19 +1,27 @@
 {% extends "base.html" %}
-{% block title %}Account{% endblock %}
+{% block title %}{{ _("Account") }}{% endblock %}
 {% block main_class %}medium{% endblock %}
 {% block content %}
-<div class="pagehead"><h1>Account</h1></div>
-<p>Ingelogd als <b>{{ user.username }}</b>{% if user.is_admin %} (beheerder){% endif %}.</p>
+<div class="pagehead"><h1>{{ _("Account") }}</h1></div>
+<p>{{ _("Ingelogd als") }} <b>{{ user.username }}</b>{% if user.is_admin %} ({{ _("beheerder") }}){% endif %}.</p>
 
-<h2>Wachtwoord wijzigen</h2>
+<h2>{{ _("Taal") }}</h2>
+<div class="panel row">
+  {% for code, name in (('nl', 'Nederlands'), ('en', 'English')) %}
+  <a class="button {{ '' if lang == code else 'secondary' }}" href="/taal/{{ code }}?terug=/account" hreflang="{{ code }}">{{ name }}</a>
+  {% endfor %}
+  <span class="muted small">{{ _("Wordt op dit apparaat onthouden.") }}</span>
+</div>
+
+<h2>{{ _("Wachtwoord wijzigen") }}</h2>
 <form method="post" action="/account/wachtwoord" class="panel stack">
   <input type="hidden" name="csrf" value="{{ csrf }}">
-  <label>Huidig wachtwoord <input name="current" type="password" autocomplete="current-password" required></label>
+  <label>{{ _("Huidig wachtwoord") }} <input name="current" type="password" autocomplete="current-password" required></label>
   <div class="grid2">
-    <label>Nieuw wachtwoord <input name="new" type="password" minlength="8" autocomplete="new-password" required></label>
-    <label>Herhaal <input name="repeat" type="password" minlength="8" autocomplete="new-password" required></label>
+    <label>{{ _("Nieuw wachtwoord") }} <input name="new" type="password" minlength="8" autocomplete="new-password" required></label>
+    <label>{{ _("Herhaal") }} <input name="repeat" type="password" minlength="8" autocomplete="new-password" required></label>
   </div>
-  <div class="row"><button>Wijzigen</button></div>
+  <div class="row"><button>{{ _("Wijzigen") }}</button></div>
 </form>
 <p class="muted small">BarManager {{ version }}</p>
 {% endblock %}

@@ -1,0 +1,53 @@
+name: Bug report
+description: Something in BarManager does not work as it should.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Locations > Home bar > Scan
+        2. ...
+  - type: input
+    id: version
+    attributes:
+      label: BarManager version
+      description: The bottom of the Account page shows it (or open /healthz).
+      placeholder: "0.7.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: setup
+    attributes:
+      label: How do you run it?
+      options:
+        - Docker on a Raspberry Pi (arm64)
+        - Docker on a server or NAS (amd64)
+        - Running from source
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and device
+      placeholder: "Safari on iPhone 15, Chrome on Android, ..."
+  - type: input
+    id: barcode
+    attributes:
+      label: Barcode (if it is about a bottle)
+      description: For a bottle that is not found, has the wrong name or the wrong category.
+      placeholder: "5010314570101"
+  - type: textarea
+    id: log
+    attributes:
+      label: Screenshots or the container log
+      description: "`docker logs barmanager` around the time it happened says what went wrong. Remove anything private first."

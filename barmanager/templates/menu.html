@@ -7,14 +7,14 @@
   <h1>{{ loc.name }}</h1>
   {% if loc.description %}<p class="muted">{{ loc.description }}</p>{% endif %}
   <nav class="tabs">
-    {% if drinks %}<a class="tab" href="#cocktails">Cocktails <span>{{ drinks|length }}</span></a>{% endif %}
-    <a class="tab" href="#bar">In de bar <span>{{ n_items }}</span></a>
+    {% if drinks %}<a class="tab" href="#cocktails">{{ _("Cocktails") }} <span>{{ drinks|length }}</span></a>{% endif %}
+    <a class="tab" href="#bar">{{ _("In de bar") }} <span>{{ n_items }}</span></a>
   </nav>
 </header>
 
 {% if drinks %}
 <section id="cocktails">
-  <h2>Cocktails</h2>
+  <h2>{{ _("Cocktails") }}</h2>
   <div class="cocktail-grid">
     {% for c in drinks %}
     <a class="cocktail-card" href="/kaart/{{ token }}/cocktail/{{ c.id }}">
@@ -28,7 +28,7 @@
 {% endif %}
 
 <section id="bar">
-  <h2>In de bar</h2>
+  <h2>{{ _("In de bar") }}</h2>
   {% for key, items in groups %}
   <h3 class="group-head"><span class="dot" style="--c: {{ cat_color(key) }}"></span>{{ cat_label(key) }}</h3>
   <div class="menu-items">
@@ -37,15 +37,15 @@
       <span class="card-img">{% if it.image %}<img src="/images/{{ it.image }}" alt="" loading="lazy">{% else %}<img src="/static/bottle.svg" alt="" class="ph">{% endif %}</span>
       <div>
         <b>{{ it.name }}</b>
-        <div class="muted small">{{ [it.country, ('%g'|format(it.abv) ~ '%') if it.abv else '']|select|join(' · ') }}</div>
+        <div class="muted small">{{ [it.country, (it.abv|g ~ '%') if it.abv else '']|select|join(' · ') }}</div>
         {% if it.description %}<p class="small menu-desc">{{ it.description }}</p>{% endif %}
       </div>
     </div>
     {% endfor %}
   </div>
   {% else %}
-  <p class="muted">De bar is nog leeg.</p>
+  <p class="muted">{{ _("De bar is nog leeg.") }}</p>
   {% endfor %}
 </section>
-<p class="muted small center">Gemaakt met BarManager</p>
+<p class="muted small center">{{ _("Gemaakt met BarManager") }}</p>
 {% endblock %}

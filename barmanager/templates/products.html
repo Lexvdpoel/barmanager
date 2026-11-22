@@ -1,66 +1,66 @@
 {% extends "base.html" %}
-{% block title %}Producten{% endblock %}
+{% block title %}{{ _("Producten") }}{% endblock %}
 {% block content %}
 <div class="pagehead">
   <div>
-    <h1>Producten</h1>
-    <div class="muted small">Alle gescande en ingevoerde producten. Verwijder hier verkeerde scans of producten die je niet meer gebruikt.</div>
+    <h1>{{ _("Producten") }}</h1>
+    <div class="muted small">{{ _("Alle gescande en ingevoerde producten. Verwijder hier verkeerde scans of producten die je niet meer gebruikt.") }}</div>
   </div>
 </div>
 
 <form method="get" class="filters">
-  <input type="search" name="q" value="{{ q }}" placeholder="Zoek op naam, merk of barcode…" autocomplete="off">
+  <input type="search" name="q" value="{{ q }}" placeholder="{{ _('Zoek op naam, merk of barcode…') }}" autocomplete="off">
   {% if cat %}<input type="hidden" name="cat" value="{{ cat }}">{% endif %}
-  <select name="merk" aria-label="Merk" data-autosubmit>
-    <option value="">Alle merken</option>
+  <select name="merk" aria-label="{{ _('Merk') }}" data-autosubmit>
+    <option value="">{{ _("Alle merken") }}</option>
     {% for b, n in brands %}<option value="{{ b }}" {{ 'selected' if b == merk }}>{{ b }} ({{ n }})</option>{% endfor %}
   </select>
-  <select name="staat" aria-label="Soort" data-autosubmit>
-    <option value="">Alles</option>
-    <option value="onbekend" {{ 'selected' if staat == 'onbekend' }}>Zonder naam</option>
-    <option value="los" {{ 'selected' if staat == 'los' }}>In geen enkele locatie</option>
+  <select name="staat" aria-label="{{ _('Soort') }}" data-autosubmit>
+    <option value="">{{ _("Alles") }}</option>
+    <option value="onbekend" {{ 'selected' if staat == 'onbekend' }}>{{ _("Zonder naam") }}</option>
+    <option value="los" {{ 'selected' if staat == 'los' }}>{{ _("In geen enkele locatie") }}</option>
   </select>
-  <button class="secondary">Zoeken</button>
+  <button class="secondary">{{ _("Zoeken") }}</button>
 </form>
 
 <div class="chips">
-  <a class="chip {{ 'on' if not cat }}" href="{{ url_with(cat='') }}">Alle <span>{{ counts['_all'] }}</span></a>
+  <a class="chip {{ 'on' if not cat }}" href="{{ url_with(cat='') }}">{{ _("Alle") }} <span>{{ counts['_all'] }}</span></a>
   {% for key, label, color in CATEGORIES %}{% if counts.get(key) %}
-  <a class="chip {{ 'on' if cat == key }}" style="--c: {{ color }}" href="{{ url_with(cat=key) }}">{{ label }} <span>{{ counts[key] }}</span></a>
+  <a class="chip {{ 'on' if cat == key }}" style="--c: {{ color }}" href="{{ url_with(cat=key) }}">{{ _(label) }} <span>{{ counts[key] }}</span></a>
   {% endif %}{% endfor %}
 </div>
 
 {% if not items %}
-  <div class="empty panel"><p>Geen producten gevonden.</p></div>
+  <div class="empty panel"><p>{{ _("Geen producten gevonden.") }}</p></div>
 {% else %}
-<form method="post" action="/producten-verwijderen" id="bulk" data-confirm="Geselecteerde producten helemaal verwijderen? Ze verdwijnen uit alle locaties, inclusief foto's en geschiedenis.">
+<form method="post" action="/producten-verwijderen" id="bulk" data-confirm="{{ _("Geselecteerde producten helemaal verwijderen? Ze verdwijnen uit alle locaties, inclusief foto's en geschiedenis.") }}">
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <input type="hidden" name="back" value="{{ url_with() }}">
   <div class="bulkbar">
-    <label class="check"><input type="checkbox" id="selectAll"> Alles selecteren</label>
-    <button class="danger small" id="bulkDelete" disabled>Verwijderen (<span id="selCount">0</span>)</button>
+    <label class="check"><input type="checkbox" id="selectAll"> {{ _("Alles selecteren") }}</label>
+    <button class="danger small" id="bulkDelete" disabled>{{ _("Verwijderen") }} (<span id="selCount">0</span>)</button>
   </div>
   <div class="cards">
     {% for it in items %}
     <article class="card prod-card">
-      <label class="pick" aria-label="Selecteren">
+      <label class="pick" aria-label="{{ _('Selecteren') }}">
         <input type="checkbox" name="ids" value="{{ it.id }}" {{ 'disabled' if not it.deletable }}
-               {% if not it.deletable %}title="Staat ook in locaties van anderen"{% endif %}>
+               {% if not it.deletable %}title="{{ _('Staat ook in locaties van anderen') }}"{% endif %}>
       </label>
       <a class="card-img" href="/producten/{{ it.id }}">
         {% if it.image %}<img src="/images/{{ it.image }}" alt="" loading="lazy">
         {% else %}<img src="/static/bottle.svg" alt="" class="ph">{% endif %}
       </a>
       <div class="card-body">
-        <a class="card-title" href="/producten/{{ it.id }}">{{ it.name or 'Onbekend product' }}</a>
+        <a class="card-title" href="/producten/{{ it.id }}">{{ it.name or _('Onbekend product') }}</a>
         <div class="card-meta">
           {% for c in it.cats %}<span class="badge" style="--c: {{ cat_color(c) }}">{{ cat_label(c) }}</span>{% endfor %}
           {% if it.brand %}<span>{{ it.brand }}</span>{% endif %}
         </div>
         <div class="muted small">
           <span class="mono">{{ it.barcode }}</span> ·
-          {% if it.locs %}{{ it.total }} fl. in {% for lid, lname in it.locs %}<a href="/producten/{{ it.id }}?loc={{ lid }}">{{ lname }}</a>{{ ', ' if not loop.last }}{% endfor %}
-          {% else %}in geen locatie{% endif %}
+          {% if it.locs %}{{ _('{n} fl. in', n=it.total) }} {% for lid, lname in it.locs %}<a href="/producten/{{ it.id }}?loc={{ lid }}">{{ lname }}</a>{{ ', ' if not loop.last }}{% endfor %}
+          {% else %}{{ _('in geen locatie') }}{% endif %}
         </div>
       </div>
     </article>

@@ -1,19 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Scannen · {{ loc.name }}{% endblock %}
+{% block title %}{{ _("Scannen") }} · {{ loc.name }}{% endblock %}
 {% block content %}
 <div class="pagehead">
   <div>
-    <div class="crumbs"><a href="/locaties">Locaties</a> / <a href="/locaties/{{ loc.id }}">{{ loc.name }}</a> /</div>
-    <h1>Scannen</h1>
+    <div class="crumbs"><a href="/locaties">{{ _("Locaties") }}</a> / <a href="/locaties/{{ loc.id }}">{{ loc.name }}</a> /</div>
+    <h1>{{ _("Scannen") }}</h1>
   </div>
-  <div class="actions"><a class="button secondary" href="/locaties/{{ loc.id }}">Klaar</a></div>
+  <div class="actions"><a class="button secondary" href="/locaties/{{ loc.id }}">{{ _("Klaar") }}</a></div>
 </div>
 
 <div id="scanner" class="scan-layout" data-location="{{ loc.id }}">
   <div class="scan-left">
-    <div class="seg" role="group" aria-label="Wat wil je doen?">
-      <button type="button" class="seg-btn on" data-mode="add" aria-pressed="true">+ Toevoegen</button>
-      <button type="button" class="seg-btn" data-mode="remove" aria-pressed="false">− Afboeken</button>
+    <div class="seg" role="group" aria-label="{{ _('Wat wil je doen?') }}">
+      <button type="button" class="seg-btn on" data-mode="add" aria-pressed="true">+ {{ _("Toevoegen") }}</button>
+      <button type="button" class="seg-btn" data-mode="remove" aria-pressed="false">− {{ _("Afboeken") }}</button>
     </div>
 
     <div class="camera panel">
@@ -22,35 +22,35 @@
         <div class="aim"></div>
         <button type="button" class="next-scan" id="nextScan" hidden>
           <span class="next-info" id="nextInfo"></span>
-          Volgende fles scannen
+          {{ _("Volgende fles scannen") }}
         </button>
       </div>
       <div class="cam-off" id="camOff">
-        <p>Richt de camera van je telefoon op de barcode van de fles.</p>
+        <p>{{ _("Richt de camera van je telefoon op de barcode van de fles.") }}</p>
         <p class="muted small" id="camNote"></p>
       </div>
       <div class="cam-tools">
-        <label class="zoom" id="zoomWrap" hidden>Zoom <input type="range" id="zoom" min="1" max="4" step="0.1" value="1"></label>
-        <button type="button" class="secondary small" id="torch" hidden>Lamp</button>
+        <label class="zoom" id="zoomWrap" hidden>{{ _("Zoom") }} <input type="range" id="zoom" min="1" max="4" step="0.1" value="1"></label>
+        <button type="button" class="secondary small" id="torch" hidden>{{ _("Lamp") }}</button>
       </div>
       <div class="cam-controls">
-        <button type="button" id="camToggle">Camera starten</button>
+        <button type="button" id="camToggle">{{ _("Camera starten") }}</button>
         <select id="camSelect" hidden aria-label="Camera"></select>
       </div>
       <p class="muted small cam-status" id="camStatus" aria-live="polite"></p>
-      <p class="muted small cam-tip">Tip: houd de fles op ±15–20 cm en zoom iets in, dan stelt de camera beter scherp.</p>
+      <p class="muted small cam-tip">{{ _("Tip: houd de fles op ±15–20 cm en zoom iets in, dan stelt de camera beter scherp.") }}</p>
     </div>
 
     <form id="manual" class="panel row-form" autocomplete="off">
-      <input id="code" inputmode="numeric" enterkeyhint="go" placeholder="Barcode typen of handscanner" aria-label="Barcode">
-      <label class="qty-label">Aantal <input id="qty" type="number" min="1" max="1000" value="1"></label>
+      <input id="code" inputmode="numeric" enterkeyhint="go" placeholder="{{ _('Barcode typen of handscanner') }}" aria-label="{{ _('Barcode') }}">
+      <label class="qty-label">{{ _("Aantal") }} <input id="qty" type="number" min="1" max="1000" value="1"></label>
       <button>OK</button>
     </form>
   </div>
 
   <div class="scan-right">
-    <h2>Gescand <span class="muted" id="scanCount"></span></h2>
-    <div id="feed" class="feed"><p class="muted" id="feedEmpty">Nog niets gescand.</p></div>
+    <h2>{{ _("Gescand") }} <span class="muted" id="scanCount"></span></h2>
+    <div id="feed" class="feed"><p class="muted" id="feedEmpty">{{ _("Nog niets gescand.") }}</p></div>
   </div>
 </div>
 <div id="toast" class="toast" hidden></div>

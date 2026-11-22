@@ -1,38 +1,47 @@
 <!doctype html>
-<html lang="nl">
+<html lang="{{ lang }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#1b1f27">
-  <title>{% block title %}Voorraad{% endblock %} · BarManager</title>
+  <title>{% block title %}{{ _("Voorraad") }}{% endblock %} · BarManager</title>
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/style.css?v={{ version }}">
   {% block head %}{% endblock %}
 </head>
 <body data-csrf="{{ csrf }}">
+{% set here = request.url.path ~ ('?' ~ request.url.query if request.url.query else '') %}
+{% macro lang_switch() %}
+<span class="langs" role="group" aria-label="{{ _('Taal') }}">
+  {% for code in ('nl', 'en') %}<a href="/taal/{{ code }}?terug={{ here|urlencode }}" class="{{ 'on' if lang == code }}" hreflang="{{ code }}" {% if lang == code %}aria-current="true"{% endif %}>{{ code|upper }}</a>{% endfor %}
+</span>
+{% endmacro %}
 {% if user %}
 <header class="top"><div class="inner">
   <a class="brand" href="/locaties"><img src="/static/icon.svg" alt="" width="24" height="24"> BarManager</a>
   <nav>
     {% set path = request.url.path %}
-    <a href="/locaties" class="{{ 'on' if path.startswith('/locaties') or (path.startswith('/producten/') and request.query_params.get('loc')) }}">Locaties</a>
-    <a href="/producten" class="{{ 'on' if path == '/producten' or (path.startswith('/producten/') and not request.query_params.get('loc')) }}">Producten</a>
-    <a href="/cocktails" class="{{ 'on' if path.startswith('/cocktails') }}">Cocktails</a>
-    <a href="/boodschappen" class="{{ 'on' if path.startswith('/boodschappen') }}">Boodschappen</a>
-    {% if user.is_admin %}<a href="/gebruikers" class="{{ 'on' if path.startswith('/gebruikers') }}">Gebruikers</a>{% endif %}
+    <a href="/locaties" class="{{ 'on' if path.startswith('/locaties') or (path.startswith('/producten/') and request.query_params.get('loc')) }}">{{ _("Locaties") }}</a>
+    <a href="/producten" class="{{ 'on' if path == '/producten' or (path.startswith('/producten/') and not request.query_params.get('loc')) }}">{{ _("Producten") }}</a>
+    <a href="/cocktails" class="{{ 'on' if path.startswith('/cocktails') or path.startswith('/keuken') }}">{{ _("Cocktails") }}</a>
+    <a href="/boodschappen" class="{{ 'on' if path.startswith('/boodschappen') }}">{{ _("Boodschappen") }}</a>
+    {% if user.is_admin %}<a href="/gebruikers" class="{{ 'on' if path.startswith('/gebruikers') }}">{{ _("Gebruikers") }}</a>{% endif %}
     <a href="/account" class="{{ 'on' if path.startswith('/account') }}">{{ user.username }}</a>
   </nav>
+  {{ lang_switch() }}
   <form method="post" action="/logout" class="inline">
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <button class="ghost small">Uitloggen</button>
+    <button class="ghost small">{{ _("Uitloggen") }}</button>
   </form>
 </div></header>
 {% endif %}
 <main class="{% block main_class %}{% endblock %}">
+  {% if not user %}<div class="lang-corner">{{ lang_switch() }}</div>{% endif %}
   {% if msg %}<div class="flash ok">{{ msg }}</div>{% endif %}
   {% if err %}<div class="flash err">{{ err }}</div>{% endif %}
   {% block content %}{% endblock %}
 </main>
+<script>window.BM_LANG = {{ lang|tojson }}; window.BM_I18N = {{ js_i18n|tojson }};</script>
 <script src="/static/app.js?v={{ version }}"></script>
 {% block scripts %}{% endblock %}
 </body>

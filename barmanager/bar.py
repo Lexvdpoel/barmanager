@@ -5,11 +5,11 @@ from __future__ import annotations
 import time
 from datetime import datetime
 
-from . import categories
+from . import categories, i18n
+from .i18n import _
 from .db import Database
 from .service import accessible_location_ids, product_categories
 
-MONTHS_NL = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"]
 LOW_LEVEL = 25          # last bottle at or below this % -> on the shopping list
 
 
@@ -49,7 +49,8 @@ def shopping_list(db: Database, user) -> dict:
             if key in manual:
                 m = manual[key]
                 entry = {"kind": "handmatig", "id": m["id"],
-                         "reason": f"door {m['username']}" if m["username"] else "handmatig toegevoegd"}
+                         "reason": _("door {username}", username=m["username"]) if m["username"]
+                         else _("handmatig toegevoegd")}
                 if reason:
                     entry["reason"] = reason
             elif reason and key not in hidden:
@@ -57,7 +58,7 @@ def shopping_list(db: Database, user) -> dict:
             if not entry:
                 continue
             entry.update(product_id=r["product_id"], location_id=r["location_id"],
-                         name=r["name"] or f"Onbekend product ({r['barcode']})", image=r["image"],
+                         name=r["name"] or _("Onbekend product ({barcode})", barcode=r["barcode"]), image=r["image"],
                          quantity=r["quantity"], price=r["price"], shop=r["shop"],
                          cats=product_categories(r))
             per_loc.setdefault(r["location_id"], []).append(entry)
@@ -79,12 +80,12 @@ def shopping_list(db: Database, user) -> dict:
 def auto_reason(r) -> str:
     q, mn = r["quantity"], r["min_quantity"]
     if mn and q <= mn:
-        return "op" if q <= 0 else f"onder het minimum ({q} van {mn})"
+        return _("op") if q <= 0 else _("onder het minimum ({q} van {mn})", q=q, mn=mn)
     if r["track_levels"]:
         if q <= 0:
-            return "op"
+            return _("op")
         if q == 1 and r["open_level"] is not None and r["open_level"] <= LOW_LEVEL:
-            return f"laatste fles bijna leeg ({r['open_level']}%)"
+            return _("laatste fles bijna leeg ({level}%)", level=r["open_level"])
     return ""
 
 
@@ -128,7 +129,7 @@ def stats(db: Database, location_id: int, months: int = 6) -> dict:
     now = datetime.now()
     y, m = now.year, now.month
     keys = []
-    for _ in range(months):
+    for _i in range(months):
         keys.append((y, m))
         m -= 1
         if m == 0:
@@ -179,7 +180,7 @@ def stats(db: Database, location_id: int, months: int = 6) -> dict:
 
     open_now = db.one("SELECT COUNT(*) AS n FROM inventory WHERE location_id=? AND open_level IS NOT NULL "
                       "AND quantity > 0", location_id)["n"]
-    month_list = [{"label": f"{MONTHS_NL[k[1] - 1]}" + (f" '{k[0] % 100:02d}" if k[1] == 1 or i == 0 else ""),
+    month_list = [{"label": i18n.month(k[1]) + (f" '{k[0] % 100:02d}" if k[1] == 1 or i == 0 else ""),
                    "liters": v["ml"] / 1000, **v} for i, (k, v) in enumerate(per_month.items())]
     total_ml = sum(v["ml"] for v in per_month.values())
     return {

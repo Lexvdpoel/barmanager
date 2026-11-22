@@ -1,0 +1,19 @@
+title: "[Show] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Show your bar, your set-up or your favourite cocktail from BarManager. Please leave out anything
+        private, like addresses or the link to your own bar menu if you do not want strangers to see it.
+  - type: textarea
+    id: what
+    attributes:
+      label: What are you showing?
+      description: Your bar, the hardware it runs on, a cocktail you discovered through "One missing", ...
+    validations:
+      required: true
+  - type: textarea
+    id: pictures
+    attributes:
+      label: Pictures
+      description: Drop screenshots or photos here.

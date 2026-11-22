@@ -1,6 +1,6 @@
-# Compose-opstelling voor een gewone Docker-host.
-# Zet er een reverse proxy met TLS voor (bijv. Nginx Proxy Manager): de camera-scanner
-# in de browser werkt alleen via https.
+# Compose set-up for an ordinary Docker host.
+# Put a reverse proxy with TLS in front of it (Nginx Proxy Manager, Caddy, Traefik, ...): the camera
+# scanner in the browser only works over https.
 
 services:
   barmanager:
@@ -10,25 +10,33 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Amsterdam
-      # Eerste beheerder (alleen gebruikt als de database nog leeg is).
+      # First administrator (only used while the database is still empty).
       - BM_ADMIN_USERNAME=admin
-      - BM_ADMIN_PASSWORD=verander-mij
-      # Optioneel: Brave Search API-sleutel voor webzoeken en foto's zoeken.
-      # - BM_BRAVE_API_KEY=
-      # Optioneel: lokale AI die ontbrekende gegevens aanvult (zie de ollama-service hieronder).
-      # - BM_OLLAMA_URL=http://ollama:11434
-      # Optioneel: eigen SearXNG voor gratis webzoeken (zet 'json' aan in search.formats).
+      - BM_ADMIN_PASSWORD=change-me
+      # Optional: your own SearXNG for free web search (switch on 'json' in search.formats).
       # - BM_SEARXNG_URL=http://searxng:8080
+      # Optional: a Brave Search API key instead of SearXNG.
+      # - BM_BRAVE_API_KEY=
+      # Optional: local AI that fills in missing details (see the ollama service below).
+      # - BM_OLLAMA_URL=http://ollama:11434
     volumes:
       - ./appdata/barmanager:/config
     ports:
       - "8080:8080"
     restart: unless-stopped
 
-  # Optioneel: lokale AI (Qwen 2.5 3B) voor het aanvullen van merk, land, alcohol en omschrijving.
+  # Optional: local AI (qwen3:4b by default) that fills in brand, country, alcohol and description.
   # ollama:
   #   image: ollama/ollama:latest
   #   container_name: ollama
   #   volumes:
   #     - ./appdata/ollama:/root/.ollama
+  #   restart: unless-stopped
+
+  # Optional: web search for unknown barcodes, product photos and sources for the AI.
+  # searxng:
+  #   image: searxng/searxng:latest
+  #   container_name: searxng
+  #   volumes:
+  #     - ./appdata/searxng:/etc/searxng
   #   restart: unless-stopped

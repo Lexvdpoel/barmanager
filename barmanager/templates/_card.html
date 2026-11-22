@@ -4,19 +4,19 @@
   <a class="card-img" href="/producten/{{ it.id }}?loc={{ loc.id }}">
     {% if it.image %}<img src="/images/{{ it.image }}" alt="" loading="lazy">
     {% else %}<img src="/static/bottle.svg" alt="" class="ph">{% endif %}
-    {% if it.lookup_status == 'pending' %}<span class="pill busy">zoeken…</span>
-    {% elif it.lookup_status == 'not_found' and not it.name %}<span class="pill bad">onbekend</span>
-    {% elif it.lookup_status == 'guess' %}<span class="pill warn">controleren</span>
-    {% elif ob and ob.state == 'over' %}<span class="pill bad">over datum</span>{% endif %}
-    {% if ob %}<span class="level" title="Open fles: nog {{ ob.level }}%"><span style="height: {{ ob.level }}%"></span></span>{% endif %}
+    {% if it.lookup_status == 'pending' %}<span class="pill busy">{{ _("zoeken…") }}</span>
+    {% elif it.lookup_status == 'not_found' and not it.name %}<span class="pill bad">{{ _("onbekend") }}</span>
+    {% elif it.lookup_status == 'guess' %}<span class="pill warn">{{ _("controleren") }}</span>
+    {% elif ob and ob.state == 'over' %}<span class="pill bad">{{ _("over datum") }}</span>{% endif %}
+    {% if ob %}<span class="level" title="{{ _('Open fles: nog {level}%', level=ob.level) }}"><span style="height: {{ ob.level }}%"></span></span>{% endif %}
   </a>
   <div class="card-body">
-    <a class="card-title" href="/producten/{{ it.id }}?loc={{ loc.id }}">{{ it.name or 'Onbekend product' }}</a>
+    <a class="card-title" href="/producten/{{ it.id }}?loc={{ loc.id }}">{{ it.name or _('Onbekend product') }}</a>
     <div class="card-meta">
       {% for c in it.cats %}<span class="badge" style="--c: {{ cat_color(c) }}">{{ cat_label(c) }}</span>{% endfor %}
-      {% if it.volume_ml %}<span>{{ '%g'|format(it.volume_ml / 10) }} cl</span>{% endif %}
-      {% if it.abv %}<span>{{ '%g'|format(it.abv) }}%</span>{% endif %}
-      {% if ob %}<span class="{{ 'bad' if ob.state == 'over' else ('warn' if ob.state == 'bijna' else '') }}">open · {{ ob.level }}%</span>{% endif %}
+      {% if it.volume_ml %}<span>{{ (it.volume_ml / 10)|g }} cl</span>{% endif %}
+      {% if it.abv %}<span>{{ it.abv|g }}%</span>{% endif %}
+      {% if ob %}<span class="{{ 'bad' if ob.state == 'over' else ('warn' if ob.state == 'bijna' else '') }}">{{ _("open · {level}%", level=ob.level) }}</span>{% endif %}
     </div>
     {% if not it.name %}<div class="muted small mono">{{ it.barcode }}</div>{% endif %}
   </div>
@@ -24,13 +24,13 @@
     <form method="post" action="/locaties/{{ loc.id }}/items/{{ it.id }}/aanpassen" class="adj">
       <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="delta" value="-1">
       <input type="hidden" name="back" value="{{ back_url }}">
-      <button class="round" aria-label="Eén minder" {{ 'disabled' if it.quantity <= 0 }}>−</button>
+      <button class="round" data-step="-1" aria-label="{{ _('Eén minder') }}" {{ 'disabled' if it.quantity <= 0 }}>−</button>
     </form>
-    <span class="qty-n" {% if it.min_quantity %}title="minimum {{ it.min_quantity }}"{% endif %}>{{ it.quantity }}</span>
+    <span class="qty-n" data-min="{{ it.min_quantity }}" {% if it.min_quantity %}title="{{ _('minimum {n}', n=it.min_quantity) }}"{% endif %}>{{ it.quantity }}</span>
     <form method="post" action="/locaties/{{ loc.id }}/items/{{ it.id }}/aanpassen" class="adj">
       <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="delta" value="1">
       <input type="hidden" name="back" value="{{ back_url }}">
-      <button class="round" aria-label="Eén meer">+</button>
+      <button class="round" data-step="1" aria-label="{{ _('Eén meer') }}">+</button>
     </form>
   </div>
 </article>

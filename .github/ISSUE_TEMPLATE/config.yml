@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Ask a question
+    url: https://github.com/Lexvdpoel/barmanager/discussions/new?category=q-a
+    about: How do I ...? Questions about installing or using BarManager go to the Q&A in Discussions.
+  - name: Suggest an idea
+    url: https://github.com/Lexvdpoel/barmanager/discussions/new?category=ideas
+    about: New features are discussed and voted on in Discussions.
+  - name: Show your bar
+    url: https://github.com/Lexvdpoel/barmanager/discussions/new?category=show-and-tell
+    about: Share your set-up, your bar menu or your favourite cocktail in Show and tell.
+  - name: Report a security problem
+    url: https://github.com/Lexvdpoel/barmanager/security/advisories/new
+    about: Please report vulnerabilities privately, not in a public issue.

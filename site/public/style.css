@@ -105,7 +105,7 @@ section { padding: 96px 0; }
 @media (max-width: 860px) { .step-list { grid-template-columns: 1fr; } }
 .phones { margin: 56px auto 0; display: flex; justify-content: center; gap: clamp(12px, 3vw, 36px); max-width: 940px; }
 .phones img, .phones.two img { width: 30%; border-radius: 24px; border: 6px solid #15100d; box-shadow: var(--shadow); }
-.phones img:nth-child(2) { transform: translateY(-26px); }
+.phones img:nth-child(3), .phones img:nth-child(4) { transform: translateY(-26px); }   /* the middle phone (en + nl copy) */
 .phones.two { margin: 0; }
 .phones.two img { width: 46%; }
 

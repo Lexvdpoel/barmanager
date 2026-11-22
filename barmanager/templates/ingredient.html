@@ -8,18 +8,18 @@
 {% macro row(p, badge) %}
 <label class="link-row">
   <input type="hidden" name="shown" value="{{ p.id }}">
-  <input type="checkbox" name="products" value="{{ p.id }}" {{ 'checked' if p.linked }} aria-label="Altijd koppelen aan {{ naam }}">
+  <input type="checkbox" name="products" value="{{ p.id }}" {{ 'checked' if p.linked }} aria-label="{{ _('Altijd koppelen aan {name}', name=naam) }}">
   <span class="link-img">{% if p.image %}<img src="/images/{{ p.image }}" alt="" loading="lazy">{% endif %}</span>
   <span class="link-name"><a href="/producten/{{ p.id }}{{ '?loc=' ~ loc if loc }}">{{ p.name or p.barcode }}</a>
-    {% if badge %}{{ badge|safe }}{% endif %}
-    <span class="muted small">{{ p.qty }} fles{{ 'sen' if p.qty != 1 }}{% if p.brand and p.brand not in (p.name or '') %} · {{ p.brand }}{% endif %}</span></span>
+    {% if badge %}<span class="badge" style="--c: #1f8a4c">{{ badge }}</span>{% endif %}
+    <span class="muted small">{{ _n("{n} fles", "{n} flessen", p.qty) }}{% if p.brand and p.brand not in (p.name or '') %} · {{ p.brand }}{% endif %}</span></span>
 </label>
 {% endmacro %}
 <div class="pagehead">
   <div>
-    <div class="crumbs"><a href="{{ back }}">← terug</a></div>
+    <div class="crumbs"><a href="{{ back }}">← {{ _("terug") }}</a></div>
     <h1>{{ naam }}</h1>
-    <div class="muted small">Komt voor in {{ used_in }} cocktail{{ 's' if used_in != 1 }}{% if location %} · flessen in {{ location.name }}{% endif %}</div>
+    <div class="muted small">{{ _n("Komt voor in {n} cocktail", "Komt voor in {n} cocktails", used_in) }}{% if location %} · {{ _("flessen in {place}", place=location.name) }}{% endif %}</div>
   </div>
 </div>
 
@@ -30,38 +30,38 @@
   <input type="hidden" name="loc" value="{{ loc or '' }}">
 
   <div class="panel stack">
-    <h2 class="flush">Juiste flessen <span class="muted small">{{ exact|length }}</span></h2>
+    <h2 class="flush">{{ _("Juiste flessen") }} <span class="muted small">{{ exact|length }}</span></h2>
     {% if exact %}
     <div class="link-list">
-      {% for p in exact %}{{ row(p, '<span class="badge" style="--c: #1f8a4c">zelf gekoppeld</span>' if p.linked else '') }}{% endfor %}
+      {% for p in exact %}{{ row(p, _('zelf gekoppeld') if p.linked else '') }}{% endfor %}
     </div>
     {% else %}
-    <p class="muted">Geen fles op voorraad die precies {{ naam }} is.</p>
+    <p class="muted">{{ _("Geen fles op voorraad die precies {name} is.", name=naam) }}</p>
     {% endif %}
   </div>
 
   <div class="panel stack">
-    <h2 class="flush">Vervangers <span class="muted small">{{ subs|length }}</span></h2>
+    <h2 class="flush">{{ _("Vervangers") }} <span class="muted small">{{ subs|length }}</span></h2>
     {% if subs %}
-    <p class="muted small">Zelfde soort drank, maar niet precies wat het recept vraagt. Het kan, de smaak wordt anders.</p>
+    <p class="muted small">{{ _("Zelfde soort drank, maar niet precies wat het recept vraagt. Het kan, de smaak wordt anders.") }}</p>
     <div class="link-list">{% for p in subs %}{{ row(p, '') }}{% endfor %}</div>
     {% else %}
-    <p class="muted">Geen vervangers op voorraad.</p>
+    <p class="muted">{{ _("Geen vervangers op voorraad.") }}</p>
     {% endif %}
   </div>
 
   {% if rest %}
   <details class="panel">
-    <summary><b>Andere flessen</b> <span class="muted small">{{ rest|length }} · zelf koppelen als BarManager een fles niet herkent</span></summary>
+    <summary><b>{{ _("Andere flessen") }}</b> <span class="muted small">{{ rest|length }} · {{ _("zelf koppelen als BarManager een fles niet herkent") }}</span></summary>
     <div class="link-list" style="margin-top: 10px">{% for p in rest %}{{ row(p, '') }}{% endfor %}</div>
   </details>
   {% endif %}
 
   <div class="panel stack">
-    <p class="muted small">Vink een fles aan om hem altijd als juiste fles voor {{ naam }} te laten tellen.</p>
+    <p class="muted small">{{ _("Vink een fles aan om hem altijd als juiste fles voor {name} te laten tellen.", name=naam) }}</p>
     <label class="check"><input type="checkbox" name="always" value="1" {{ 'checked' if always }}>
-      {{ naam }} heb ik altijd in huis (hoeft niet op voorraad te staan)</label>
-    <div class="row"><button>Opslaan</button></div>
+      {{ _("{name} heb ik altijd in huis (hoeft niet op voorraad te staan)", name=naam) }}</label>
+    <div class="row"><button>{{ _("Opslaan") }}</button></div>
   </div>
 </form>
 {% endblock %}

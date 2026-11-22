@@ -1,21 +1,22 @@
 {% extends "base.html" %}
-{% block title %}Cocktails{% endblock %}
+{% block title %}{{ _("Cocktails") }}{% endblock %}
 {% block content %}
 <div class="pagehead">
   <div>
-    <h1>Cocktails</h1>
+    <h1>{{ _("Cocktails") }}</h1>
     <div class="muted small">
-      {% if fles_p %}Met <a href="/producten/{{ fles_p.id }}">{{ fles_p.name }}</a> ·
-      <a href="{{ url_with(fles='') }}">alle flessen</a> ·{% endif %}
-      {{ n_stock }} fles{{ 'sen' if n_stock != 1 }} op voorraad{% if location %} in {{ location.name }}{% else %} in al je locaties{% endif %}
-      · {{ n_cocktails }} recepten
+      {% if fles_p %}{{ _("Met") }} <a href="/producten/{{ fles_p.id }}">{{ fles_p.name }}</a> ·
+      <a href="{{ url_with(fles='') }}">{{ _("alle flessen") }}</a> ·{% endif %}
+      {% if location %}{{ _n("{n} fles op voorraad in {place}", "{n} flessen op voorraad in {place}", n_stock, place=location.name) }}
+      {% else %}{{ _n("{n} fles op voorraad in al je locaties", "{n} flessen op voorraad in al je locaties", n_stock) }}{% endif %}
+      · {{ _n("{n} recept", "{n} recepten", n_cocktails) }}
     </div>
   </div>
   <form method="post" action="/cocktails/bijwerken" class="actions">
-    <a class="button secondary" href="/keuken">Keuken &amp; mixers</a>
+    <a class="button secondary" href="/keuken">{{ _("Keuken & mixers") }}</a>
     {% if user.is_admin %}
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <button class="ghost small" {{ 'disabled' if syncing }}>{{ 'Bezig met ophalen…' if syncing else 'Recepten bijwerken' }}</button>
+    <button class="ghost small" {{ 'disabled' if syncing }}>{{ _("Bezig met ophalen…") if syncing else _("Recepten bijwerken") }}</button>
     {% endif %}
   </form>
 </div>
@@ -23,54 +24,54 @@
 {% if not n_cocktails %}
 <div class="empty panel" {% if syncing or not last_sync %}data-autorefresh="15"{% endif %}>
   {% if sync_error %}
-  <p><b>De recepten konden niet worden opgehaald.</b></p><p class="muted">{{ sync_error }}. Er wordt over een uur opnieuw geprobeerd.</p>
+  <p><b>{{ _("De recepten konden niet worden opgehaald.") }}</b></p><p class="muted">{{ sync_error }}. {{ _("Er wordt over een uur opnieuw geprobeerd.") }}</p>
   {% else %}
-  <p><b>De cocktailrecepten worden opgehaald…</b></p>
-  <p class="muted">BarManager haalt alle recepten van TheCocktailDB op (ruim 600). Dat gebeurt kort na het opstarten en duurt een paar minuten; deze pagina ververst vanzelf.</p>
+  <p><b>{{ _("De cocktailrecepten worden opgehaald…") }}</b></p>
+  <p class="muted">{{ _("BarManager haalt alle recepten van TheCocktailDB op (ruim 600). Dat gebeurt kort na het opstarten en duurt een paar minuten; deze pagina ververst vanzelf.") }}</p>
   {% endif %}
 </div>
 {% else %}
 
 <form method="get" class="filters">
-  <input type="search" name="q" value="{{ q }}" placeholder="Zoek op naam of ingrediënt…" autocomplete="off">
+  <input type="search" name="q" value="{{ q }}" placeholder="{{ _('Zoek op naam of ingrediënt…') }}" autocomplete="off">
   {% if fles_p %}<input type="hidden" name="fles" value="{{ fles_p.id }}">{% endif %}
   {% if met %}<input type="hidden" name="met" value="{{ met }}">{% endif %}
   <input type="hidden" name="toon" value="{{ toon }}">
-  <select name="loc" aria-label="Locatie" data-autosubmit>
-    <option value="">Alle locaties</option>
+  <select name="loc" aria-label="{{ _('Locatie') }}" data-autosubmit>
+    <option value="">{{ _("Alle locaties") }}</option>
     {% for l in locations %}<option value="{{ l.id }}" {{ 'selected' if loc == l.id }}>{{ l.name }}</option>{% endfor %}
   </select>
-  <select name="soort" aria-label="Alcohol" data-autosubmit>
-    {% for k, v in TYPES.items() %}<option value="{{ k }}" {{ 'selected' if k == soort }}>{{ v }}</option>{% endfor %}
+  <select name="soort" aria-label="{{ _('Alcohol') }}" data-autosubmit>
+    {% for k, v in TYPES.items() %}<option value="{{ k }}" {{ 'selected' if k == soort }}>{{ _(v) }}</option>{% endfor %}
   </select>
   {% if not pantry %}
-  <select name="sap" aria-label="Sap en frisdrank" data-autosubmit>
-    <option value="1" {{ 'selected' if assume }}>Sap, frisdrank en siroop heb ik in huis</option>
-    <option value="0" {{ 'selected' if not assume }}>Sap, frisdrank en siroop moeten op voorraad zijn</option>
+  <select name="sap" aria-label="{{ _('Sap en frisdrank') }}" data-autosubmit>
+    <option value="1" {{ 'selected' if assume }}>{{ _("Sap, frisdrank en siroop heb ik in huis") }}</option>
+    <option value="0" {{ 'selected' if not assume }}>{{ _("Sap, frisdrank en siroop moeten op voorraad zijn") }}</option>
   </select>
   {% endif %}
-  <label class="check"><input type="checkbox" name="iba" value="1" {{ 'checked' if iba }} onchange="this.form.submit()"> Alleen klassiekers (IBA)</label>
-  <button class="secondary">Zoeken</button>
+  <label class="check"><input type="checkbox" name="iba" value="1" {{ 'checked' if iba }} onchange="this.form.submit()"> {{ _("Alleen klassiekers (IBA)") }}</label>
+  <button class="secondary">{{ _("Zoeken") }}</button>
 </form>
 
 <div class="tabs">
   {% for k, v in SHOW.items() %}
-  <a class="tab {{ 'on' if toon == k }}" href="{{ url_with(toon=k, met='') }}">{{ v }} <span>{{ counts[k] }}</span></a>
+  <a class="tab {{ 'on' if toon == k }}" href="{{ url_with(toon=k, met='') }}">{{ _(v) }} <span>{{ counts[k] }}</span></a>
   {% endfor %}
 </div>
 
 {% if met_counts %}
 <div class="chips">
-  <a class="chip {{ 'on' if not met }}" href="{{ url_with(met='') }}">Alles</a>
+  <a class="chip {{ 'on' if not met }}" href="{{ url_with(met='') }}">{{ _("Alles") }}</a>
   {% for key, label, color in CATEGORIES %}{% if met_counts.get(key) %}
-  <a class="chip {{ 'on' if met == key }}" style="--c: {{ color }}" href="{{ url_with(met=key) }}">met {{ label|lower }} <span>{{ met_counts[key] }}</span></a>
+  <a class="chip {{ 'on' if met == key }}" style="--c: {{ color }}" href="{{ url_with(met=key) }}">{{ _("met {category}", category=_(label)|lower) }} <span>{{ met_counts[key] }}</span></a>
   {% endif %}{% endfor %}
 </div>
 {% endif %}
 
 {% if toon == 'bijna' and unlock %}
 <div class="panel unlock">
-  <b>Dit zou de meeste cocktails erbij opleveren</b>
+  <b>{{ _("Dit zou de meeste cocktails erbij opleveren") }}</b>
   <div class="unlock-list">
     {% for name, n in unlock %}<span class="badge">{{ name }} <b>+{{ n }}</b></span>{% endfor %}
   </div>
@@ -80,11 +81,10 @@
 {% if not items %}
 <div class="empty panel">
   {% if toon == 'kan' %}
-  <p><b>Met wat er nu staat kun je nog geen cocktail maken.</b></p>
-  <p class="muted">Kijk bij <a href="{{ url_with(toon='bijna') }}">Mist één fles</a> welke fles het meeste oplevert.
-    Een fles die niet wordt herkend kun je bij een ingrediënt zelf koppelen.</p>
+  <p><b>{{ _("Met wat er nu staat kun je nog geen cocktail maken.") }}</b></p>
+  <p class="muted">{{ _("Kijk bij Mist er één welke fles het meeste oplevert. Een fles die niet wordt herkend kun je bij een ingrediënt zelf koppelen.") }}</p>
   {% else %}
-  <p>Niets gevonden. <a href="/cocktails">Filters wissen</a></p>
+  <p>{{ _("Niets gevonden.") }} <a href="/cocktails">{{ _("Filters wissen") }}</a></p>
   {% endif %}
 </div>
 {% else %}
@@ -98,13 +98,13 @@
     <span class="cocktail-body">
       <b>{{ c.name }}</b>
       <span class="muted small">{{ c.ingredients|map(attribute='name')|join(', ') }}</span>
-      {% if c.missing %}<span class="small missing">Mist: {{ c.missing|join(', ') }}</span>
-      {% elif c.subs %}<span class="small sub">Met vervanger voor {{ c.subs|join(', ') }}</span>{% endif %}
+      {% if c.missing %}<span class="small missing">{{ _("Mist: {items}", items=c.missing|join(', ')) }}</span>
+      {% elif c.subs %}<span class="small sub">{{ _("Met vervanger voor {items}", items=c.subs|join(', ')) }}</span>{% endif %}
     </span>
   </a>
   {% endfor %}
 </div>
 {% endif %}
-<p class="muted small center">Recepten van <a href="https://www.thecocktaildb.com" rel="noopener" target="_blank">TheCocktailDB</a>{% if last_sync %}, bijgewerkt <span data-ts="{{ last_sync }}"></span>{% endif %}.</p>
+<p class="muted small center">{{ _("Recepten van") }} <a href="https://www.thecocktaildb.com" rel="noopener" target="_blank">TheCocktailDB</a>{% if last_sync %}, {{ _("bijgewerkt") }} <span data-ts="{{ last_sync }}"></span>{% endif %}.</p>
 {% endif %}
 {% endblock %}

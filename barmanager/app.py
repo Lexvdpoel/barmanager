@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
 
-from . import __version__, api, pages, web
+from . import __version__, api, i18n, pages, web
 from .auth import LoginRequired, current_user
 from .config import Settings
 from .db import Database
@@ -78,6 +78,16 @@ def create_app(settings: Settings | None = None, lookup: Lookup | None = None,
     app.include_router(web.router)
     app.include_router(pages.router)
 
+    @app.middleware("http")
+    async def _language(request: Request, call_next):
+        # Language of this request: the NL/EN choice (cookie), else the browser.
+        lang = i18n.pick_lang(request.cookies.get(i18n.COOKIE), request.headers.get("accept-language"))
+        token = i18n.set_lang(lang)
+        try:
+            return await call_next(request)
+        finally:
+            i18n._lang.reset(token)
+
     @app.exception_handler(LoginRequired)
     async def _login_required(request: Request, exc):
         return RedirectResponse("/login", status_code=303)
@@ -85,10 +95,10 @@ def create_app(settings: Settings | None = None, lookup: Lookup | None = None,
     @app.exception_handler(HTTPException)
     async def _http_error(request: Request, exc: HTTPException):
         if request.url.path.startswith("/api/") or "application/json" in request.headers.get("accept", ""):
-            return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+            return JSONResponse({"detail": i18n._(str(exc.detail))}, status_code=exc.status_code)
         request.state.user = current_user(request)
         return web.render(request, "error.html", status_code=exc.status_code,
-                          status=exc.status_code, detail=exc.detail)
+                          status=exc.status_code, detail=i18n._(str(exc.detail)))
 
     @app.get("/healthz")
     async def healthz():

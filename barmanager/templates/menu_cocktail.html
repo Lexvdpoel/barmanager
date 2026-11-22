@@ -5,14 +5,14 @@
 {% block content %}
 <p class="crumbs"><a href="/kaart/{{ token }}#cocktails">← {{ loc.name }}</a></p>
 <h1>{{ c.name }}</h1>
-<div class="card-meta">{% if c.glass %}<span>{{ c.glass }}</span>{% endif %}{% if c.iba %}<span>IBA-klassieker</span>{% endif %}</div>
+<div class="card-meta">{% if c.glass %}<span>{{ c.glass }}</span>{% endif %}{% if c.iba %}<span>{{ _("IBA-klassieker") }}</span>{% endif %}</div>
 <div class="product-layout menu-cocktail">
   <div class="photos panel">
     {% if c.image %}<img class="photo-main cocktail-photo" src="/images/{{ c.image }}" alt="">{% endif %}
   </div>
   <div class="stack-lg">
     <div class="panel">
-      <h2 class="flush">Ingrediënten</h2>
+      <h2 class="flush">{{ _("Ingrediënten") }}</h2>
       <table class="ingredients">
         {% for r in rows %}
         <tr><td class="amount">{{ r.measure }}</td>
@@ -20,7 +20,7 @@
         {% endfor %}
       </table>
     </div>
-    {% if c.instructions %}<div class="panel"><h2 class="flush">Bereiding</h2><p class="instructions" lang="en">{{ c.instructions }}</p></div>{% endif %}
+    {% if c.instructions %}<div class="panel"><h2 class="flush">{{ _("Bereiding") }}</h2><p class="instructions" lang="en">{{ c.instructions }}</p></div>{% endif %}
   </div>
 </div>
 {% endblock %}

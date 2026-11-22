@@ -9,7 +9,8 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
-from . import __version__, categories, images, service
+from . import __version__, categories, i18n, images, service
+from .i18n import _, _n
 from .auth import (check_csrf, create_session, current_user, db_of, logout, require_admin,
                    require_user, set_cookie)
 from .security import LoginLimiter, hash_password, verify_password
@@ -19,7 +20,10 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 templates.env.globals.update(
     version=__version__,
     CATEGORIES=categories.CATEGORIES,
-    cat_label=categories.label,
+    cat_label=lambda k: _(categories.label(k)),
+    _=_,
+    _n=_n,
+    num=i18n.number,
     cat_color=lambda k: categories.COLORS.get(k, categories.COLORS["overig"]),
     stock_state=service.stock_state,
     open_info=service.open_info,
@@ -30,11 +34,15 @@ templates.env.globals.update(
 def _euro(v) -> str:
     if v is None:
         return ""
+    if i18n.get_lang() == "en":
+        return f"€{v:,.2f}"
     s = f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     return "€ " + s
 
 
 templates.env.filters["euro"] = _euro
+# 40 -> "40", 37.5 -> "37,5" (Dutch) or "37.5" (English)
+templates.env.filters["g"] = lambda v: ("%g" % v) if i18n.get_lang() == "en" else ("%g" % v).replace(".", ",")
 limiter = LoginLimiter()
 
 SORTS = {"categorie": "Categorie", "naam": "Naam", "aantal": "Aantal", "recent": "Laatst gewijzigd"}
@@ -47,6 +55,8 @@ def render(request: Request, name: str, status_code: int = 200, **ctx) -> HTMLRe
     ctx.setdefault("csrf", getattr(request.state, "csrf", ""))
     ctx.setdefault("msg", request.query_params.get("msg"))
     ctx.setdefault("err", request.query_params.get("err"))
+    ctx.setdefault("lang", i18n.get_lang())
+    ctx.setdefault("js_i18n", i18n.js_strings())
     return templates.TemplateResponse(request, name, ctx, status_code=status_code)
 
 
@@ -104,6 +114,16 @@ def _float(value):
     return v
 
 
+# ---- language -------------------------------------------------------------------------------
+@router.get("/taal/{lang}")
+def set_language(request: Request, lang: str, terug: str = ""):
+    resp = RedirectResponse(safe_back(terug, "/"), status_code=303)
+    if lang in i18n.LANGS:
+        resp.set_cookie(i18n.COOKIE, lang, max_age=365 * 86400, samesite="lax",
+                        secure=request.url.scheme == "https")
+    return resp
+
+
 # ---- login ----------------------------------------------------------------------------------
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
@@ -117,12 +137,12 @@ def login(request: Request, username: str = Form(""), password: str = Form("")):
     key = (request.client.host if request.client else "?") + ":" + username.lower()
     if limiter.blocked(key):
         return render(request, "login.html", user=None, username=username,
-                      err="Te veel mislukte pogingen, probeer het over een paar minuten opnieuw.")
+                      err=_("Te veel mislukte pogingen, probeer het over een paar minuten opnieuw."))
     row = db_of(request).one("SELECT * FROM users WHERE username=?", username.strip())
     if not row or not verify_password(password, row["password_hash"]):
         limiter.fail(key)
         return render(request, "login.html", user=None, username=username,
-                      err="Onjuiste gebruikersnaam of wachtwoord.")
+                      err=_("Onjuiste gebruikersnaam of wachtwoord."))
     limiter.reset(key)
     resp = redirect("/")
     set_cookie(request, resp, create_session(request, row["id"]))
@@ -170,10 +190,10 @@ def create_location(request: Request, user=Depends(require_user), csrf: str = Fo
     check_csrf(request, csrf)
     name = name.strip()[:100]
     if not name:
-        return redirect("/locaties", err="Geef de locatie een naam.")
+        return redirect("/locaties", err=_("Geef de locatie een naam."))
     lid = db_of(request).run("INSERT INTO locations(name, description, owner_id, created_at) VALUES (?,?,?,?)",
                              name, description.strip()[:500], user["id"], time.time())
-    return redirect(f"/locaties/{lid}", msg=f"Locatie '{name}' aangemaakt. Begin met scannen!")
+    return redirect(f"/locaties/{lid}", msg=_("Locatie '{name}' aangemaakt. Begin met scannen!", name=name))
 
 
 def _filtered_items(request: Request, lid: int, q: str, cat: str, state: str, sort: str):
@@ -260,18 +280,22 @@ def scan_page(request: Request, lid: int, user=Depends(require_user)):
 @router.get("/locaties/{lid}/export.csv")
 def export_csv(request: Request, lid: int, user=Depends(require_user)):
     loc = get_location(request, lid, user)
-    items, _ = _filtered_items(request, lid, "", "", "", "categorie")
+    items, _counts = _filtered_items(request, lid, "", "", "", "categorie")
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";")
-    w.writerow(["categorie", "ook_in", "naam", "merk", "barcode", "inhoud_ml", "alcohol_pct", "aantal",
+    en = i18n.get_lang() == "en"
+    w.writerow(["category", "also_in", "name", "brand", "barcode", "volume_ml", "abv_pct", "quantity", "minimum",
+                "notes", "price_per_bottle", "bought_on", "shop", "value"] if en else
+               ["categorie", "ook_in", "naam", "merk", "barcode", "inhoud_ml", "alcohol_pct", "aantal",
                 "minimum", "notities", "prijs_per_fles", "gekocht_op", "winkel", "waarde"])
+    money = (lambda v: f"{v:.2f}") if en else (lambda v: f"{v:.2f}".replace(".", ","))
     for it in items:
-        w.writerow([categories.label(it["category"]), ", ".join(categories.label(c) for c in it["cats"][1:]),
+        w.writerow([_(categories.label(it["category"])), ", ".join(_(categories.label(c)) for c in it["cats"][1:]),
                     it["name"], it["brand"], it["barcode"],
                     it["volume_ml"] or "", it["abv"] if it["abv"] is not None else "",
                     it["quantity"], it["min_quantity"], it["notes"],
-                    f"{it['price']:.2f}".replace(".", ",") if it["price"] is not None else "", it["bought_at"],
-                    it["shop"], f"{service.item_value(it, bool(loc['track_levels'])):.2f}".replace(".", ",")])
+                    money(it["price"]) if it["price"] is not None else "", it["bought_at"],
+                    it["shop"], money(service.item_value(it, bool(loc['track_levels'])))])
     fname = "".join(ch if ch.isalnum() else "-" for ch in loc["name"]).strip("-") or "voorraad"
     return Response("﻿" + buf.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{fname}.csv"'})
@@ -305,7 +329,7 @@ def update_item(request: Request, lid: int, pid: int, user=Depends(require_user)
     db.run("UPDATE inventory SET min_quantity=?, notes=?, price=?, bought_at=?, shop=? "
            "WHERE location_id=? AND product_id=?",
            _int(min_quantity, 0, 0, 100000), notes.strip()[:500], price_v, bought, shop.strip()[:80], lid, pid)
-    return redirect(f"/producten/{pid}?loc={lid}", msg="Voorraad opgeslagen.")
+    return redirect(f"/producten/{pid}?loc={lid}", msg=_("Voorraad opgeslagen."))
 
 
 @router.post("/locaties/{lid}/items/{pid}/verwijderen")
@@ -313,7 +337,7 @@ def remove_item(request: Request, lid: int, pid: int, user=Depends(require_user)
     check_csrf(request, csrf)
     get_location(request, lid, user)
     db_of(request).run("DELETE FROM inventory WHERE location_id=? AND product_id=?", lid, pid)
-    return redirect(f"/locaties/{lid}", msg="Product uit deze locatie verwijderd.")
+    return redirect(f"/locaties/{lid}", msg=_("Product uit deze locatie verwijderd."))
 
 
 @router.get("/locaties/{lid}/instellingen", response_class=HTMLResponse)
@@ -341,10 +365,10 @@ def save_location(request: Request, lid: int, user=Depends(require_user), csrf: 
                   name: str = Form(""), description: str = Form("")):
     _managed_location(request, lid, user, csrf)
     if not name.strip():
-        return redirect(f"/locaties/{lid}/instellingen", err="Naam mag niet leeg zijn.")
+        return redirect(f"/locaties/{lid}/instellingen", err=_("Naam mag niet leeg zijn."))
     db_of(request).run("UPDATE locations SET name=?, description=? WHERE id=?",
                        name.strip()[:100], description.strip()[:500], lid)
-    return redirect(f"/locaties/{lid}/instellingen", msg="Opgeslagen.")
+    return redirect(f"/locaties/{lid}/instellingen", msg=_("Opgeslagen."))
 
 
 @router.post("/locaties/{lid}/leden")
@@ -354,17 +378,17 @@ def add_member(request: Request, lid: int, user=Depends(require_user), csrf: str
     db = db_of(request)
     member = db.one("SELECT id FROM users WHERE username=?", username.strip())
     if not member:
-        return redirect(f"/locaties/{lid}/instellingen", err=f"Gebruiker '{username}' bestaat niet.")
+        return redirect(f"/locaties/{lid}/instellingen", err=_("Gebruiker '{username}' bestaat niet.", username=username))
     if member["id"] != loc["owner_id"]:
         db.run("INSERT OR IGNORE INTO location_members(location_id, user_id) VALUES (?,?)", lid, member["id"])
-    return redirect(f"/locaties/{lid}/instellingen", msg=f"{username} heeft nu toegang.")
+    return redirect(f"/locaties/{lid}/instellingen", msg=_("{username} heeft nu toegang.", username=username))
 
 
 @router.post("/locaties/{lid}/leden/{uid}/verwijderen")
 def remove_member(request: Request, lid: int, uid: int, user=Depends(require_user), csrf: str = Form("")):
     _managed_location(request, lid, user, csrf)
     db_of(request).run("DELETE FROM location_members WHERE location_id=? AND user_id=?", lid, uid)
-    return redirect(f"/locaties/{lid}/instellingen", msg="Toegang ingetrokken.")
+    return redirect(f"/locaties/{lid}/instellingen", msg=_("Toegang ingetrokken."))
 
 
 @router.post("/locaties/{lid}/verwijderen")
@@ -372,9 +396,9 @@ def delete_location(request: Request, lid: int, user=Depends(require_user), csrf
                     confirm: str = Form("")):
     loc = _managed_location(request, lid, user, csrf)
     if confirm.strip() != loc["name"]:
-        return redirect(f"/locaties/{lid}/instellingen", err="Typ de naam van de locatie om te bevestigen.")
+        return redirect(f"/locaties/{lid}/instellingen", err=_("Typ de naam van de locatie om te bevestigen."))
     db_of(request).run("DELETE FROM locations WHERE id=?", lid)
-    return redirect("/locaties", msg=f"Locatie '{loc['name']}' verwijderd.")
+    return redirect("/locaties", msg=_("Locatie '{name}' verwijderd.", name=loc["name"]))
 
 
 # ---- products -------------------------------------------------------------------------------------
@@ -444,11 +468,11 @@ def delete_products(request: Request, user=Depends(require_user), csrf: str = Fo
             skipped += 1
     back = safe_back(back, "/producten")
     if not done:
-        return redirect(back, err="Niets verwijderd." if not skipped else
-                        "Deze producten staan ook in locaties van anderen; alleen een beheerder kan ze verwijderen.")
-    msg = f"{done} product(en) verwijderd."
+        return redirect(back, err=_("Niets verwijderd.") if not skipped else
+                        _("Deze producten staan ook in locaties van anderen; alleen een beheerder kan ze verwijderen."))
+    msg = _n("{n} product verwijderd.", "{n} producten verwijderd.", done)
     if skipped:
-        msg += f" {skipped} overgeslagen (staan ook in locaties van anderen)."
+        msg += " " + _("{n} overgeslagen (staan ook in locaties van anderen).", n=skipped)
     return redirect(back, msg=msg)
 
 
@@ -459,11 +483,11 @@ def delete_product(request: Request, pid: int, user=Depends(require_user), csrf:
     p = get_product(request, pid)
     db = db_of(request)
     if not service.can_delete_product(db, user, pid):
-        return redirect(_product_url(pid, loc), err="Dit product staat ook in locaties van anderen; "
-                                                     "alleen een beheerder kan het verwijderen.")
+        return redirect(_product_url(pid, loc), err=_("Dit product staat ook in locaties van anderen; "
+                                                       "alleen een beheerder kan het verwijderen."))
     service.delete_product(db, request.app.state.settings, pid)
     back = f"/locaties/{_int(loc)}" if _int(loc) else "/producten"
-    return redirect(back, msg=f"'{p['name'] or p['barcode']}' verwijderd.")
+    return redirect(back, msg=_("'{name}' verwijderd.", name=p["name"] or p["barcode"]))
 
 
 @router.get("/producten/{pid}", response_class=HTMLResponse)
@@ -538,11 +562,11 @@ def save_product(request: Request, pid: int, user=Depends(require_user), csrf: s
         service.reclassify(db, pid)
         if db.one("SELECT category FROM products WHERE id=?", pid)["category"] == categories.DEFAULT:
             request.app.state.worker.enqueue(pid, "classify")
-    msg = "Product opgeslagen."
+    msg = _("Product opgeslagen.")
     request.app.state.ai.wake()
     if name.strip() and not service.product_images(db, pid):
         request.app.state.worker.enqueue(pid, "images")
-        msg += " Er wordt op de achtergrond naar foto's gezocht."
+        msg += " " + _("Er wordt op de achtergrond naar foto's gezocht.")
     return redirect(_product_url(pid, loc), msg=msg)
 
 
@@ -551,10 +575,10 @@ def ai_again(request: Request, pid: int, user=Depends(require_user), csrf: str =
     check_csrf(request, csrf)
     get_product(request, pid)
     if not request.app.state.ai.enricher.enabled:
-        return redirect(_product_url(pid, loc), err="Er is geen AI ingesteld (BM_OLLAMA_URL).")
+        return redirect(_product_url(pid, loc), err=_("Er is geen AI ingesteld (BM_OLLAMA_URL)."))
     db_of(request).run("UPDATE products SET ai_for='', ai_attempts=0 WHERE id=?", pid)
     request.app.state.ai.wake()
-    return redirect(_product_url(pid, loc), msg="De AI vult lege velden aan; dat duurt ongeveer een minuut.")
+    return redirect(_product_url(pid, loc), msg=_("De AI vult lege velden aan; dat duurt ongeveer een minuut."))
 
 
 @router.post("/producten/{pid}/opnieuw-opzoeken")
@@ -563,7 +587,7 @@ def relookup(request: Request, pid: int, user=Depends(require_user), csrf: str =
     get_product(request, pid)
     db_of(request).run("UPDATE products SET lookup_status='pending' WHERE id=? AND lookup_status!='manual'", pid)
     request.app.state.worker.enqueue(pid, "lookup")
-    return redirect(_product_url(pid, loc), msg="Product wordt opnieuw opgezocht; ververs de pagina zo.")
+    return redirect(_product_url(pid, loc), msg=_("Product wordt opnieuw opgezocht; ververs de pagina zo."))
 
 
 @router.post("/producten/{pid}/fotos")
@@ -588,10 +612,10 @@ async def add_photo(request: Request, pid: int, user=Depends(require_user), csrf
             data = await run_in_threadpool(_download)
             service.add_image(db, pid, images.store(data, settings.image_dir), url.strip())
         else:
-            return redirect(_product_url(pid, loc), err="Kies een bestand of vul een adres in.")
+            return redirect(_product_url(pid, loc), err=_("Kies een bestand of vul een adres in."))
     except Exception as exc:  # noqa: BLE001
-        return redirect(_product_url(pid, loc), err=f"Foto toevoegen mislukt: {exc}")
-    return redirect(_product_url(pid, loc), msg="Foto toegevoegd.")
+        return redirect(_product_url(pid, loc), err=_("Foto toevoegen mislukt: {error}", error=exc))
+    return redirect(_product_url(pid, loc), msg=_("Foto toegevoegd."))
 
 
 @router.post("/producten/{pid}/fotos/zoeken")
@@ -600,14 +624,14 @@ def search_photos(request: Request, pid: int, user=Depends(require_user), csrf: 
     check_csrf(request, csrf)
     p = get_product(request, pid)
     if not p["name"]:
-        return redirect(_product_url(pid, loc), err="Vul eerst een naam in.")
+        return redirect(_product_url(pid, loc), err=_("Vul eerst een naam in."))
     st = request.app.state
     urls = st.lookup.image_search(service.image_query(p["name"], p["brand"]))
     # An explicit search may add a few more, on top of what is already there.
     added = service.download_images(st.db, st.settings, st.lookup, pid, urls, limit=st.settings.max_images)
     if not added:
-        return redirect(_product_url(pid, loc), err="Geen (nieuwe) foto's gevonden.")
-    return redirect(_product_url(pid, loc), msg=f"{added} foto('s) toegevoegd.")
+        return redirect(_product_url(pid, loc), err=_("Geen (nieuwe) foto's gevonden."))
+    return redirect(_product_url(pid, loc), msg=_n("{n} foto toegevoegd.", "{n} foto's toegevoegd.", added))
 
 
 @router.post("/producten/{pid}/fotos/{iid}/hoofdfoto")
@@ -622,7 +646,7 @@ def primary_photo(request: Request, pid: int, iid: int, user=Depends(require_use
     with db.tx():
         for pos, img_id in enumerate(order):
             db.run("UPDATE product_images SET position=? WHERE id=?", pos, img_id)
-    return redirect(_product_url(pid, loc), msg="Hoofdfoto ingesteld.")
+    return redirect(_product_url(pid, loc), msg=_("Hoofdfoto ingesteld."))
 
 
 @router.post("/producten/{pid}/fotos/{iid}/verwijderen")
@@ -634,7 +658,7 @@ def delete_photo(request: Request, pid: int, iid: int, user=Depends(require_user
     if ph:
         db.run("DELETE FROM product_images WHERE id=?", iid)
         images.remove(ph["filename"], request.app.state.settings.image_dir)
-    return redirect(_product_url(pid, loc), msg="Foto verwijderd.")
+    return redirect(_product_url(pid, loc), msg=_("Foto verwijderd."))
 
 
 # ---- users & account -------------------------------------------------------------------------------
@@ -651,13 +675,13 @@ def create_user(request: Request, user=Depends(require_admin), csrf: str = Form(
     check_csrf(request, csrf)
     username = username.strip()
     if not username or len(username) > 50 or len(password) < 8:
-        return redirect("/gebruikers", err="Gebruikersnaam verplicht, wachtwoord minstens 8 tekens.")
+        return redirect("/gebruikers", err=_("Gebruikersnaam verplicht, wachtwoord minstens 8 tekens."))
     db = db_of(request)
     if db.one("SELECT 1 FROM users WHERE username=?", username):
-        return redirect("/gebruikers", err=f"'{username}' bestaat al.")
+        return redirect("/gebruikers", err=_("'{username}' bestaat al.", username=username))
     db.run("INSERT INTO users(username, password_hash, is_admin, created_at) VALUES (?,?,?,?)",
            username, hash_password(password), 1 if is_admin else 0, time.time())
-    return redirect("/gebruikers", msg=f"Gebruiker '{username}' aangemaakt.")
+    return redirect("/gebruikers", msg=_("Gebruiker '{username}' aangemaakt.", username=username))
 
 
 @router.post("/gebruikers/{uid}/wachtwoord")
@@ -665,29 +689,29 @@ def reset_password(request: Request, uid: int, user=Depends(require_admin), csrf
                    password: str = Form("")):
     check_csrf(request, csrf)
     if len(password) < 8:
-        return redirect("/gebruikers", err="Wachtwoord moet minstens 8 tekens zijn.")
+        return redirect("/gebruikers", err=_("Wachtwoord moet minstens 8 tekens zijn."))
     db = db_of(request)
     db.run("UPDATE users SET password_hash=? WHERE id=?", hash_password(password), uid)
     db.run("DELETE FROM sessions WHERE user_id=?", uid)
-    return redirect("/gebruikers", msg="Wachtwoord gewijzigd.")
+    return redirect("/gebruikers", msg=_("Wachtwoord gewijzigd."))
 
 
 @router.post("/gebruikers/{uid}/beheerder")
 def toggle_admin(request: Request, uid: int, user=Depends(require_admin), csrf: str = Form("")):
     check_csrf(request, csrf)
     if uid == user["id"]:
-        return redirect("/gebruikers", err="Je kunt je eigen beheerdersrechten niet afnemen.")
+        return redirect("/gebruikers", err=_("Je kunt je eigen beheerdersrechten niet afnemen."))
     db_of(request).run("UPDATE users SET is_admin = 1 - is_admin WHERE id=?", uid)
-    return redirect("/gebruikers", msg="Rechten aangepast.")
+    return redirect("/gebruikers", msg=_("Rechten aangepast."))
 
 
 @router.post("/gebruikers/{uid}/verwijderen")
 def delete_user(request: Request, uid: int, user=Depends(require_admin), csrf: str = Form("")):
     check_csrf(request, csrf)
     if uid == user["id"]:
-        return redirect("/gebruikers", err="Je kunt jezelf niet verwijderen.")
+        return redirect("/gebruikers", err=_("Je kunt jezelf niet verwijderen."))
     db_of(request).run("DELETE FROM users WHERE id=?", uid)
-    return redirect("/gebruikers", msg="Gebruiker verwijderd, inclusief de eigen locaties.")
+    return redirect("/gebruikers", msg=_("Gebruiker verwijderd, inclusief de eigen locaties."))
 
 
 @router.get("/account", response_class=HTMLResponse)
@@ -700,8 +724,8 @@ def change_password(request: Request, user=Depends(require_user), csrf: str = Fo
                     current: str = Form(""), new: str = Form(""), repeat: str = Form("")):
     check_csrf(request, csrf)
     if not verify_password(current, user["password_hash"]):
-        return redirect("/account", err="Huidig wachtwoord klopt niet.")
+        return redirect("/account", err=_("Huidig wachtwoord klopt niet."))
     if len(new) < 8 or new != repeat:
-        return redirect("/account", err="Nieuw wachtwoord moet minstens 8 tekens zijn en twee keer gelijk.")
+        return redirect("/account", err=_("Nieuw wachtwoord moet minstens 8 tekens zijn en twee keer gelijk."))
     db_of(request).run("UPDATE users SET password_hash=? WHERE id=?", hash_password(new), user["id"])
-    return redirect("/account", msg="Wachtwoord gewijzigd.")
+    return redirect("/account", msg=_("Wachtwoord gewijzigd."))

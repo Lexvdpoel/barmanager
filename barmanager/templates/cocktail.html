@@ -4,22 +4,24 @@
 {% set q = ('?loc=' ~ loc if loc else '') %}
 <div class="pagehead">
   <div>
-    <div class="crumbs"><a href="/cocktails{{ q }}">Cocktails</a> /</div>
+    <div class="crumbs"><a href="/cocktails{{ q }}">{{ _("Cocktails") }}</a> /</div>
     <h1>{{ c.name }}</h1>
     <div class="card-meta">
       {% if c.iba %}<span class="badge" style="--c: #b5651d">IBA {{ c.iba }}</span>{% endif %}
       {% if c.category %}<span>{{ c.category }}</span>{% endif %}
       {% if c.glass %}<span>{{ c.glass }}</span>{% endif %}
-      {% if c.alcoholic == 'Non alcoholic' %}<span>alcoholvrij</span>{% endif %}
+      {% if c.alcoholic == 'Non alcoholic' %}<span>{{ _("alcoholvrij") }}</span>{% endif %}
     </div>
   </div>
-  <div class="actions"><a class="button secondary" href="/cocktails{{ q }}">Terug</a></div>
+  <div class="actions"><a class="button secondary" href="/cocktails{{ q }}">{{ _("Terug") }}</a></div>
 </div>
 
 {% if missing %}
-<div class="flash warn">Je mist nog: <b>{{ missing|map(attribute='name')|join(', ') }}</b>{% if location %} in {{ location.name }}{% endif %}.</div>
+<div class="flash warn">{{ _("Je mist nog:") }} <b>{{ missing|map(attribute='name')|join(', ') }}</b>{% if location %} {{ _("in {place}", place=location.name) }}{% endif %}.</div>
+{% elif location %}
+<div class="flash ok">{{ _("Dit kun je maken met wat er in {place} staat.", place=location.name) }}</div>
 {% else %}
-<div class="flash ok">Dit kun je maken met wat er{% if location %} in {{ location.name }}{% endif %} staat.</div>
+<div class="flash ok">{{ _("Dit kun je maken met wat er staat.") }}</div>
 {% endif %}
 
 <div class="product-layout">
@@ -29,7 +31,7 @@
   </div>
   <div class="stack-lg">
     <div class="panel">
-      <h2 class="flush">Ingrediënten</h2>
+      <h2 class="flush">{{ _("Ingrediënten") }}</h2>
       <table class="ingredients">
         {% for r in rows %}
         <tr class="st-{{ r.state }}">
@@ -41,27 +43,27 @@
             {% if r.nl %}<span class="muted small">({{ r.nl }})</span>{% endif %}
             <div class="small">
               {% if r.state == 'ok' %}<span class="okc">✓ {{ r.products|map(attribute='name')|join(', ') }}</span>
-              {% elif r.state == 'vervanger' %}<span class="warn">≈ vervanger: {{ r.products|map(attribute='name')|join(', ') }}</span>
-              {% elif r.state == 'altijd' %}<span class="okc">✓ in huis</span>
-              {% elif r.state == 'basis' %}<span class="muted">{{ 'sap, frisdrank of siroop' if r.kind == 'mixer' else 'vers / basis' }}</span>
-              {% elif kitchen %}<span class="bad">✕ niet in huis</span>
-              {% else %}<span class="bad">✕ niet op voorraad</span>{% endif %}
+              {% elif r.state == 'vervanger' %}<span class="warn">≈ {{ _("vervanger: {items}", items=r.products|map(attribute='name')|join(', ')) }}</span>
+              {% elif r.state == 'altijd' %}<span class="okc">✓ {{ _("in huis") }}</span>
+              {% elif r.state == 'basis' %}<span class="muted">{{ _("sap, frisdrank of siroop") if r.kind == 'mixer' else _("vers / basis") }}</span>
+              {% elif kitchen %}<span class="bad">✕ {{ _("niet in huis") }}</span>
+              {% else %}<span class="bad">✕ {{ _("niet op voorraad") }}</span>{% endif %}
             </div>
           </td>
           <td class="right">
             {% if r.key not in ('ice', 'water') %}
-            <a class="small nowrap" href="{{ ing_url }}">{{ 'keuken' if kitchen else 'flessen' }}&nbsp;›</a>
+            <a class="small nowrap" href="{{ ing_url }}">{{ _("keuken") if kitchen else _("flessen") }}&nbsp;›</a>
             {% endif %}
           </td>
         </tr>
         {% endfor %}
       </table>
-      <p class="muted small">Hoeveelheden omgerekend naar cl (1 oz ≈ 3 cl, 1 shot ≈ 4 cl); houd je muis op een hoeveelheid voor het origineel.</p>
+      <p class="muted small">{{ _("Hoeveelheden omgerekend naar cl (1 oz ≈ 3 cl, 1 shot ≈ 4 cl); houd je muis op een hoeveelheid voor het origineel.") }}</p>
     </div>
 
     {% if c.instructions %}
     <div class="panel">
-      <h2 class="flush">Bereiding</h2>
+      <h2 class="flush">{{ _("Bereiding") }}</h2>
       <p class="instructions" lang="en">{{ c.instructions }}</p>
     </div>
     {% endif %}
@@ -71,7 +73,7 @@
       <input type="hidden" name="csrf" value="{{ csrf }}">
       <input type="hidden" name="back" value="/cocktails/{{ c.id }}{{ q }}">
       {% for r in missing %}<input type="hidden" name="naam" value="{{ r.name }}">{% endfor %}
-      <button class="secondary small">Ontbrekende op de boodschappenlijst</button>
+      <button class="secondary small">{{ _("Ontbrekende op de boodschappenlijst") }}</button>
     </form>
     {% endif %}
   </div>

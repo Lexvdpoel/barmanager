@@ -1,30 +1,28 @@
 {% extends "base.html" %}
-{% block title %}Boodschappen{% endblock %}
+{% block title %}{{ _("Boodschappen") }}{% endblock %}
 {% block main_class %}medium{% endblock %}
 {% block content %}
 <div class="pagehead">
   <div>
-    <h1>Boodschappenlijst</h1>
-    <div class="muted small">{{ count }} item{{ 's' if count != 1 }}{% if cost %} · ongeveer {{ cost|euro }} (laatst betaalde prijzen){% endif %}</div>
+    <h1>{{ _("Boodschappenlijst") }}</h1>
+    <div class="muted small">{{ _n("{n} item", "{n} items", count) }}{% if cost %} · {{ _("ongeveer {amount} (laatst betaalde prijzen)", amount=cost|euro) }}{% endif %}</div>
   </div>
   {% if count %}
   <div class="actions">
-    <button type="button" class="secondary" id="shareList">Delen</button>
-    <button type="button" class="ghost" id="clearTicks">Vinkjes wissen</button>
+    <button type="button" class="secondary" id="shareList">{{ _("Delen") }}</button>
+    <button type="button" class="ghost" id="clearTicks">{{ _("Vinkjes wissen") }}</button>
   </div>
   {% endif %}
 </div>
 
-<p class="muted small">Op de lijst komen vanzelf: flessen onder het minimum, en bij locaties die de flesinhoud bijhouden
-  lege flessen en een bijna lege laatste fles. Scan je een fles in, dan gaat hij er vanzelf af.
-  Vinkjes zijn om af te strepen in de winkel en blijven alleen op dit apparaat.</p>
+<p class="muted small">{{ _("Op de lijst komen vanzelf: flessen onder het minimum, en bij locaties die de flesinhoud bijhouden lege flessen en een bijna lege laatste fles. Scan je een fles in, dan gaat hij er vanzelf af. Vinkjes zijn om af te strepen in de winkel en blijven alleen op dit apparaat.") }}</p>
 
 {% for loc, entries in groups %}
 <h2>{{ loc.name }}</h2>
 <div class="shop-list">
   {% for e in entries %}
   <div class="shop-row" data-key="{{ e.location_id }}-{{ e.product_id }}">
-    <label class="tick"><input type="checkbox" aria-label="Afstrepen"></label>
+    <label class="tick"><input type="checkbox" aria-label="{{ _('Afstrepen') }}"></label>
     <a class="card-img" href="/producten/{{ e.product_id }}?loc={{ e.location_id }}">
       {% if e.image %}<img src="/images/{{ e.image }}" alt="" loading="lazy">{% else %}<img src="/static/bottle.svg" alt="" class="ph">{% endif %}
     </a>
@@ -36,42 +34,42 @@
       <input type="hidden" name="csrf" value="{{ csrf }}">
       <input type="hidden" name="loc" value="{{ e.location_id }}"><input type="hidden" name="pid" value="{{ e.product_id }}">
       {% if e.id %}<input type="hidden" name="item" value="{{ e.id }}">{% endif %}
-      <button class="ghost small" title="{{ 'Van de lijst halen tot de voorraad weer omhoog gaat' if e.kind == 'auto' else 'Van de lijst halen' }}">✕</button>
+      <button class="ghost small" title="{{ _('Van de lijst halen tot de voorraad weer omhoog gaat') if e.kind == 'auto' else _('Van de lijst halen') }}">✕</button>
     </form>
   </div>
   {% endfor %}
 </div>
 {% endfor %}
 
-<h2>Overig</h2>
+<h2>{{ _("Overig") }}</h2>
 <div class="shop-list">
   {% for f in free %}
   <div class="shop-row free" data-key="f{{ f.id }}">
-    <label class="tick"><input type="checkbox" aria-label="Afstrepen"></label>
+    <label class="tick"><input type="checkbox" aria-label="{{ _('Afstrepen') }}"></label>
     <div class="shop-body"><span class="shop-name">{{ f.name }}</span>
-      {% if f.username and f.created_by != user.id %}<div class="muted small">door {{ f.username }}</div>{% endif %}</div>
+      {% if f.username and f.created_by != user.id %}<div class="muted small">{{ _("door {username}", username=f.username) }}</div>{% endif %}</div>
     <form method="post" action="/boodschappen/weg">
       <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="item" value="{{ f.id }}">
-      <button class="ghost small" title="Van de lijst halen">✕</button>
+      <button class="ghost small" title="{{ _('Van de lijst halen') }}">✕</button>
     </form>
   </div>
   {% endfor %}
   <form method="post" action="/boodschappen" class="row-form shop-add">
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <input name="name" placeholder="Iets anders, bijv. limoenen of tonic" maxlength="150" required>
-    <button class="secondary">Toevoegen</button>
+    <input name="name" placeholder="{{ _('Iets anders, bijv. limoenen of tonic') }}" maxlength="150" required>
+    <button class="secondary">{{ _("Toevoegen") }}</button>
   </form>
 </div>
 
 {% if not count %}
-<div class="empty panel"><p><b>De lijst is leeg.</b></p>
-  <p class="muted">Stel bij een fles een minimum in, zet flesinhoud bijhouden aan in de instellingen van een locatie,
-    of gebruik de knop "Zet op boodschappenlijst" op een productpagina.</p></div>
+<div class="empty panel"><p><b>{{ _("De lijst is leeg.") }}</b></p>
+  <p class="muted">{{ _('Stel bij een fles een minimum in, zet flesinhoud bijhouden aan in de instellingen van een locatie, of gebruik de knop "Zet op boodschappenlijst" op een productpagina.') }}</p></div>
 {% endif %}
 {% endblock %}
 {% block scripts %}
 <script>
 (function () {
+  const t = window.BM.t;
   const KEY = "bm-shop-ticks";
   let ticks = {};
   try { ticks = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { ticks = {}; }
@@ -95,16 +93,17 @@
   });
   const share = document.getElementById("shareList");
   if (share) share.addEventListener("click", async () => {
-    const lines = ["Boodschappen:"];
+    const lines = [t("Boodschappen:")];
     rows.forEach((r) => {
       if (!r.classList.contains("done")) lines.push("- " + r.querySelector(".shop-name").textContent.trim());
     });
     const text = lines.join("\n");
     try {
-      if (navigator.share) { await navigator.share({ title: "Boodschappen", text }); return; }
+      if (navigator.share) { await navigator.share({ title: t("Boodschappen"), text }); return; }
       await navigator.clipboard.writeText(text);
-      share.textContent = "Gekopieerd";
-      setTimeout(() => { share.textContent = "Delen"; }, 1500);
+      const old = share.textContent;
+      share.textContent = t("Gekopieerd");
+      setTimeout(() => { share.textContent = old; }, 1500);
     } catch (e) { /* cancelled */ }
   });
 })();

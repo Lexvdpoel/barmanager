@@ -1,66 +1,65 @@
 {% extends "base.html" %}
-{% block title %}Statistieken · {{ loc.name }}{% endblock %}
+{% block title %}{{ _("Statistieken") }} · {{ loc.name }}{% endblock %}
 {% block content %}
-{% macro liters(v) %}{{ ('%.1f'|format(v)).replace('.', ',') }} l{% endmacro %}
+{% macro liters(v) %}{{ num(v, 1) }} l{% endmacro %}
 <div class="pagehead">
   <div>
-    <div class="crumbs"><a href="/locaties">Locaties</a> / <a href="/locaties/{{ loc.id }}">{{ loc.name }}</a> /</div>
-    <h1>Statistieken</h1>
+    <div class="crumbs"><a href="/locaties">{{ _("Locaties") }}</a> / <a href="/locaties/{{ loc.id }}">{{ loc.name }}</a> /</div>
+    <h1>{{ _("Statistieken") }}</h1>
   </div>
   <form method="get" class="actions">
-    <select name="maanden" aria-label="Periode" data-autosubmit>
-      {% for m in (3, 6, 12, 24) %}<option value="{{ m }}" {{ 'selected' if m == maanden }}>Laatste {{ m }} maanden</option>{% endfor %}
+    <select name="maanden" aria-label="{{ _('Periode') }}" data-autosubmit>
+      {% for m in (3, 6, 12, 24) %}<option value="{{ m }}" {{ 'selected' if m == maanden }}>{{ _("Laatste {n} maanden", n=m) }}</option>{% endfor %}
     </select>
   </form>
 </div>
 
 {% if not s.has_data %}
-<div class="flash info">Er is in deze periode nog niets bijgehouden. Statistieken ontstaan zodra je bij een fles aangeeft
-  hoe vol hij nog is, of als een fles leeg is (met "Leeg", de − knop of afboeken bij het scannen).</div>
+<div class="flash info">{{ _('Er is in deze periode nog niets bijgehouden. Statistieken ontstaan zodra je bij een fles aangeeft hoe vol hij nog is, of als een fles leeg is (met "Leeg", de − knop of afboeken bij het scannen).') }}</div>
 {% endif %}
 
 <div class="kpis">
-  <div class="kpi panel"><span class="kpi-n">{{ liters(s.liters) }}</span><span class="muted small">gedronken</span></div>
-  <div class="kpi panel"><span class="kpi-n">{{ s.bottles }}</span><span class="muted small">fles{{ 'sen' if s.bottles != 1 }} leeg</span></div>
-  <div class="kpi panel"><span class="kpi-n">{{ s.value|euro if s.value else '–' }}</span><span class="muted small">waarde gedronken</span></div>
-  <div class="kpi panel"><span class="kpi-n">{{ s.bought }}</span><span class="muted small">fles{{ 'sen' if s.bought != 1 }} gekocht{% if s.spent %} · {{ s.spent|euro }}{% endif %}</span></div>
-  <div class="kpi panel"><span class="kpi-n">{{ s.open_now }}</span><span class="muted small">nu open</span></div>
-  <div class="kpi panel"><span class="kpi-n">{{ s.avg_days|round|int if s.avg_days is not none else '–' }}</span><span class="muted small">dagen gem. per fles</span></div>
+  <div class="kpi panel"><span class="kpi-n">{{ liters(s.liters) }}</span><span class="muted small">{{ _("gedronken") }}</span></div>
+  <div class="kpi panel"><span class="kpi-n">{{ s.bottles }}</span><span class="muted small">{{ _n("fles leeg", "flessen leeg", s.bottles) }}</span></div>
+  <div class="kpi panel"><span class="kpi-n">{{ s.value|euro if s.value else '–' }}</span><span class="muted small">{{ _("waarde gedronken") }}</span></div>
+  <div class="kpi panel"><span class="kpi-n">{{ s.bought }}</span><span class="muted small">{{ _n("fles gekocht", "flessen gekocht", s.bought) }}{% if s.spent %} · {{ s.spent|euro }}{% endif %}</span></div>
+  <div class="kpi panel"><span class="kpi-n">{{ s.open_now }}</span><span class="muted small">{{ _("nu open") }}</span></div>
+  <div class="kpi panel"><span class="kpi-n">{{ s.avg_days|round|int if s.avg_days is not none else '–' }}</span><span class="muted small">{{ _("dagen gem. per fles") }}</span></div>
 </div>
-{% if value_now %}<p class="muted small">Huidige waarde van de voorraad: <b>{{ value_now|euro }}</b> (op basis van de ingevulde prijzen).</p>{% endif %}
+{% if value_now %}<p class="muted small">{{ _("Huidige waarde van de voorraad:") }} <b>{{ value_now|euro }}</b> ({{ _("op basis van de ingevulde prijzen") }}).</p>{% endif %}
 
 <div class="grid2 stats-grid">
   <div class="panel">
-    <h2 class="flush">Gedronken per maand</h2>
-    <div class="colchart" role="img" aria-label="Liters gedronken per maand">
+    <h2 class="flush">{{ _("Gedronken per maand") }}</h2>
+    <div class="colchart" role="img" aria-label="{{ _('Liters gedronken per maand') }}">
       {% for m in s.months %}
-      <div class="col" title="{{ m.label }}: {{ liters(m.liters) }}, {{ m.bottles }} fles(sen) leeg">
-        <span class="col-v">{% if m.liters %}{{ ('%.1f'|format(m.liters)).replace('.', ',') }}{% endif %}</span>
+      <div class="col" title="{{ m.label }}: {{ liters(m.liters) }}, {{ _n('{n} fles leeg', '{n} flessen leeg', m.bottles) }}">
+        <span class="col-v">{% if m.liters %}{{ num(m.liters, 1) }}{% endif %}</span>
         <span class="col-bar" style="height: {{ (m.liters / s.max_liters * 100) if s.max_liters else 0 }}%"></span>
         <span class="col-l">{{ m.label }}</span>
       </div>
       {% endfor %}
     </div>
-    <p class="muted small">In liters.</p>
+    <p class="muted small">{{ _("In liters.") }}</p>
   </div>
   <div class="panel">
-    <h2 class="flush">Gekocht per maand</h2>
-    <div class="colchart" role="img" aria-label="Flessen gekocht per maand">
+    <h2 class="flush">{{ _("Gekocht per maand") }}</h2>
+    <div class="colchart" role="img" aria-label="{{ _('Flessen gekocht per maand') }}">
       {% for m in s.months %}
-      <div class="col" title="{{ m.label }}: {{ m.bought }} fles(sen){% if m.spent %}, {{ m.spent|euro }}{% endif %}">
+      <div class="col" title="{{ m.label }}: {{ _n('{n} fles', '{n} flessen', m.bought) }}{% if m.spent %}, {{ m.spent|euro }}{% endif %}">
         <span class="col-v">{{ m.bought or '' }}</span>
         <span class="col-bar alt" style="height: {{ (m.bought / s.max_bought * 100) if s.max_bought else 0 }}%"></span>
         <span class="col-l">{{ m.label }}</span>
       </div>
       {% endfor %}
     </div>
-    <p class="muted small">Aantal flessen ingescand of met + toegevoegd.</p>
+    <p class="muted small">{{ _("Aantal flessen ingescand of met + toegevoegd.") }}</p>
   </div>
 </div>
 
 <div class="grid2 stats-grid">
   <div class="panel">
-    <h2 class="flush">Per soort</h2>
+    <h2 class="flush">{{ _("Per soort") }}</h2>
     {% if s.per_cat %}
     {% set top = s.per_cat[0][1] %}
     <div class="hbars">
@@ -72,22 +71,22 @@
       </div>
       {% endfor %}
     </div>
-    {% else %}<p class="muted">Nog geen gegevens.</p>{% endif %}
+    {% else %}<p class="muted">{{ _("Nog geen gegevens.") }}</p>{% endif %}
   </div>
   <div class="panel">
-    <h2 class="flush">Meest gedronken</h2>
+    <h2 class="flush">{{ _("Meest gedronken") }}</h2>
     {% if s.top %}
     <table class="mini">
-      <tr><th>Fles</th><th class="right">Liter</th><th class="right">Leeg</th><th class="right">Waarde</th></tr>
+      <tr><th>{{ _("Fles") }}</th><th class="right">{{ _("Liter") }}</th><th class="right">{{ _("Leeg") }}</th><th class="right">{{ _("Waarde") }}</th></tr>
       {% for p in s.top %}
       <tr><td><a href="/producten/{{ p.id }}?loc={{ loc.id }}">{{ p.name }}</a></td>
-        <td class="right num">{{ ('%.2f'|format(p.ml / 1000)).replace('.', ',') }}</td>
+        <td class="right num">{{ num(p.ml / 1000, 2) }}</td>
         <td class="right num">{{ p.bottles }}</td>
         <td class="right num">{{ p.value|euro if p.value else '' }}</td></tr>
       {% endfor %}
     </table>
-    {% else %}<p class="muted">Nog geen gegevens.</p>{% endif %}
+    {% else %}<p class="muted">{{ _("Nog geen gegevens.") }}</p>{% endif %}
   </div>
 </div>
-<p class="muted small">Een fles zonder ingevulde inhoud telt als 70 cl. De waarde komt van de prijs per fles bij de voorraad.</p>
+<p class="muted small">{{ _("Een fles zonder ingevulde inhoud telt als 70 cl. De waarde komt van de prijs per fles bij de voorraad.") }}</p>
 {% endblock %}

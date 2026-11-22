@@ -8,6 +8,7 @@ import time
 
 from . import categories, images
 from .db import Database
+from .i18n import _
 from .lookup import Lookup, LookupResult, image_query
 
 log = logging.getLogger("barmanager.service")
@@ -213,7 +214,7 @@ def adjust(db: Database, location_id: int, product_id: int, delta: int, user_id:
 
 
 DEFAULT_VOLUME_ML = 700
-LEVELS = [(100, "Vol"), (75, "¾"), (50, "½"), (25, "¼"), (10, "Bijna leeg")]
+LEVELS = [(100, "Vol"), (75, "¾"), (50, "½"), (25, "¼"), (10, "Bijna leeg")]     # labels go through _()
 
 
 def tracks_levels(db: Database, location_id: int) -> bool:
@@ -244,14 +245,14 @@ def set_level(db: Database, location_id: int, product_id: int, level: int | None
     """Open bottle: set how full it still is (100..1), None = still closed, 0 = finished."""
     row = db.one("SELECT * FROM inventory WHERE location_id=? AND product_id=?", location_id, product_id)
     if not row or row["quantity"] <= 0:
-        return "Er staat geen fles van dit product op deze locatie."
+        return _("Er staat geen fles van dit product op deze locatie.")
     if level is not None and level <= 0:
         adjust(db, location_id, product_id, -1, user_id, "leeg")
-        return "Fles is op; voorraad één minder."
+        return _("Fles is op; voorraad één minder.")
     now = time.time()
     if level is None:
         db.run("UPDATE inventory SET open_level=NULL, opened_at=NULL WHERE id=?", row["id"])
-        return "Fles staat weer als dicht."
+        return _("Fles staat weer als dicht.")
     level = max(1, min(100, int(level)))
     before = row["open_level"]
     poured = max(0, (100 if before is None else before) - level)
@@ -263,7 +264,7 @@ def set_level(db: Database, location_id: int, product_id: int, level: int | None
                "ml, value, created_at) VALUES (?,?,?,?,?,?,0,?,?,?)", location_id, product_id, user_id,
                "open" if before is None else "niveau", before, level, vol * poured / 100,
                (row["price"] or 0) * poured / 100, now)
-    return "Fles geopend." if before is None else "Inhoud bijgewerkt."
+    return _("Fles geopend.") if before is None else _("Inhoud bijgewerkt.")
 
 
 def shelf_days(p) -> int | None:

@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from . import categories, service
 from .auth import check_csrf, db_of, require_api_user
+from .i18n import _
 from .web import get_location, get_product
 
 router = APIRouter(prefix="/api")
@@ -27,12 +28,12 @@ def product_json(request: Request, p, location_id: int | None = None) -> dict:
         "id": p["id"],
         "barcode": p["barcode"],
         "name": p["name"],
-        "display_name": p["name"] or "Onbekend product",
+        "display_name": p["name"] or _("Onbekend product"),
         "brand": p["brand"],
         "category": p["category"],
-        "category_label": categories.label(p["category"]),
+        "category_label": _(categories.label(p["category"])),
         "category_color": categories.COLORS.get(p["category"], categories.COLORS["overig"]),
-        "categories": [{"key": c, "label": categories.label(c), "color": categories.COLORS[c]}
+        "categories": [{"key": c, "label": _(categories.label(c)), "color": categories.COLORS[c]}
                        for c in service.product_categories(p)],
         "volume_ml": p["volume_ml"],
         "abv": p["abv"],
@@ -60,11 +61,11 @@ def scan(request: Request, lid: int, body: ScanIn, user=Depends(require_api_user
     if body.mode == "remove":
         p = db.one("SELECT * FROM products WHERE barcode=?", code)
         if not p:
-            raise HTTPException(404, f"Barcode {code} is onbekend, er valt niets af te boeken")
+            raise HTTPException(404, _("Barcode {code} is onbekend, er valt niets af te boeken", code=code))
         row = db.one("SELECT quantity FROM inventory WHERE location_id=? AND product_id=?", lid, p["id"])
         if not row or row["quantity"] <= 0:
             out = product_json(request, p, lid)
-            out.update(created=False, applied=0, warning="Niet (meer) op voorraad op deze locatie")
+            out.update(created=False, applied=0, warning=_("Niet (meer) op voorraad op deze locatie"))
             return out
         before = row["quantity"]
         after = service.adjust(db, lid, p["id"], -body.qty, user["id"], "scan")

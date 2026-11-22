@@ -673,7 +673,19 @@ def _fmt(v: float) -> str:
     return f"{v:g}".replace(".", ",")
 
 
-def measure_nl(measure: str) -> str:
+def _fmt_en(v: float) -> str:
+    return f"{math.floor(v * 2 + 0.5) / 2:g}"
+
+
+def measure_local(measure: str) -> str:
+    """measure_nl() in Dutch; in English the same cl conversion with English units and a decimal point."""
+    from . import i18n
+    if i18n.get_lang() == "nl":
+        return measure_nl(measure)
+    return measure_nl(measure, english=True)
+
+
+def measure_nl(measure: str, english: bool = False) -> str:
     """'1 1/2 oz' -> '4,5 cl'; shots and jiggers too. Other measures stay as they are."""
     m = _MEASURE.match(measure or "")
     if not m:
@@ -689,11 +701,12 @@ def measure_nl(measure: str) -> str:
               "cl": 1}.get(unit)
     if unit == "ml":
         factor = 0.1
+    fmt = _fmt_en if english else _fmt
     if factor:
-        txt = _fmt(lo * factor) + (f"–{_fmt(hi * factor)}" if hi else "") + " cl"
+        txt = fmt(lo * factor) + (f"–{fmt(hi * factor)}" if hi else "") + " cl"
     else:
         num = m.group(1).strip() + (f"–{m.group(2).strip()}" if m.group(2) else "")
-        txt = (num + " " + _UNIT_NL.get(unit, unit)).strip()
+        txt = (num + " " + (unit if english else _UNIT_NL.get(unit, unit))).strip()
     return (txt + " " + rest).strip()
 
 

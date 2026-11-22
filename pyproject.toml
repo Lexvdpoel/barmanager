@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "barmanager"
-version = "0.6.8"
-description = "Drankvoorraad per locatie bijhouden door barcodes te scannen"
+version = "0.7.0"
+description = "Self-hosted home bar inventory: scan bottles, see which cocktails you can make, shopping list and statistics"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

@@ -1,35 +1,35 @@
 {% extends "base.html" %}
-{% block title %}Gebruikers{% endblock %}
+{% block title %}{{ _("Gebruikers") }}{% endblock %}
 {% block main_class %}medium{% endblock %}
 {% block content %}
-<div class="pagehead"><h1>Gebruikers</h1></div>
+<div class="pagehead"><h1>{{ _("Gebruikers") }}</h1></div>
 
 <div class="table-wrap">
 <table>
-  <thead><tr><th>Gebruiker</th><th>Rol</th><th>Locaties</th><th></th></tr></thead>
+  <thead><tr><th>{{ _("Gebruiker") }}</th><th>{{ _("Rol") }}</th><th>{{ _("Locaties") }}</th><th></th></tr></thead>
   <tbody>
   {% for u in users %}
   <tr>
-    <td><b>{{ u.username }}</b>{% if u.id == user.id %} <span class="muted">(jij)</span>{% endif %}</td>
-    <td>{{ 'Beheerder' if u.is_admin else 'Gebruiker' }}</td>
+    <td><b>{{ u.username }}</b>{% if u.id == user.id %} <span class="muted">({{ _("jij") }})</span>{% endif %}</td>
+    <td>{{ _("Beheerder") if u.is_admin else _("Gebruiker") }}</td>
     <td class="num">{{ u.locs }}</td>
     <td class="right">
       <details class="menu">
-        <summary class="button ghost small">Beheren</summary>
+        <summary class="button ghost small">{{ _("Beheren") }}</summary>
         <div class="menu-body panel stack">
           <form method="post" action="/gebruikers/{{ u.id }}/wachtwoord" class="stack">
             <input type="hidden" name="csrf" value="{{ csrf }}">
-            <label>Nieuw wachtwoord <input name="password" type="password" minlength="8" autocomplete="new-password" required></label>
-            <button class="secondary small">Wachtwoord instellen</button>
+            <label>{{ _("Nieuw wachtwoord") }} <input name="password" type="password" minlength="8" autocomplete="new-password" required></label>
+            <button class="secondary small">{{ _("Wachtwoord instellen") }}</button>
           </form>
           {% if u.id != user.id %}
           <form method="post" action="/gebruikers/{{ u.id }}/beheerder">
             <input type="hidden" name="csrf" value="{{ csrf }}">
-            <button class="secondary small">{{ 'Beheerdersrechten afnemen' if u.is_admin else 'Beheerder maken' }}</button>
+            <button class="secondary small">{{ _("Beheerdersrechten afnemen") if u.is_admin else _("Beheerder maken") }}</button>
           </form>
-          <form method="post" action="/gebruikers/{{ u.id }}/verwijderen" data-confirm="{{ u.username }} en de eigen locaties verwijderen?">
+          <form method="post" action="/gebruikers/{{ u.id }}/verwijderen" data-confirm="{{ _('{username} en de eigen locaties verwijderen?', username=u.username) }}">
             <input type="hidden" name="csrf" value="{{ csrf }}">
-            <button class="danger small">Verwijderen</button>
+            <button class="danger small">{{ _("Verwijderen") }}</button>
           </form>
           {% endif %}
         </div>
@@ -41,14 +41,14 @@
 </table>
 </div>
 
-<h2>Nieuwe gebruiker</h2>
+<h2>{{ _("Nieuwe gebruiker") }}</h2>
 <form method="post" action="/gebruikers" class="panel stack">
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <div class="grid2">
-    <label>Gebruikersnaam <input name="username" maxlength="50" autocomplete="off" required></label>
-    <label>Wachtwoord <input name="password" type="password" minlength="8" autocomplete="new-password" required></label>
+    <label>{{ _("Gebruikersnaam") }} <input name="username" maxlength="50" autocomplete="off" required></label>
+    <label>{{ _("Wachtwoord") }} <input name="password" type="password" minlength="8" autocomplete="new-password" required></label>
   </div>
-  <label class="check"><input type="checkbox" name="is_admin" value="1"> Beheerder (ziet alle locaties en beheert gebruikers)</label>
-  <div class="row"><button>Aanmaken</button></div>
+  <label class="check"><input type="checkbox" name="is_admin" value="1"> {{ _("Beheerder (ziet alle locaties en beheert gebruikers)") }}</label>
+  <div class="row"><button>{{ _("Aanmaken") }}</button></div>
 </form>
 {% endblock %}

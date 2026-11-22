@@ -4,65 +4,65 @@
 {% set back_url = url_with() %}
 <div class="pagehead">
   <div>
-    <div class="crumbs"><a href="/locaties">Locaties</a> /</div>
+    <div class="crumbs"><a href="/locaties">{{ _("Locaties") }}</a> /</div>
     <h1>{{ loc.name }}</h1>
-    <div class="muted small">{{ total.b }} flessen · {{ total.n }} producten{% if value %} · waarde {{ value|euro }}{% endif %}</div>
+    <div class="muted small">{{ _n("{n} fles", "{n} flessen", total.b) }} · {{ _n("{n} product", "{n} producten", total.n) }}{% if value %} · {{ _("waarde") }} {{ value|euro }}{% endif %}</div>
   </div>
   <div class="actions">
-    <a class="button" href="/locaties/{{ loc.id }}/scannen">Scannen</a>
-    {% if loc.track_levels %}<a class="button secondary" href="/locaties/{{ loc.id }}/statistieken">Statistieken</a>{% endif %}
+    <a class="button" href="/locaties/{{ loc.id }}/scannen">{{ _("Scannen") }}</a>
+    {% if loc.track_levels %}<a class="button secondary" href="/locaties/{{ loc.id }}/statistieken">{{ _("Statistieken") }}</a>{% endif %}
     <a class="button secondary" href="/locaties/{{ loc.id }}/export.csv">CSV</a>
-    <a class="button secondary" href="/locaties/{{ loc.id }}/instellingen">Instellingen</a>
+    <a class="button secondary" href="/locaties/{{ loc.id }}/instellingen">{{ _("Instellingen") }}</a>
   </div>
 </div>
 
 {% if alerts %}
 <div class="flash warn alerts">
-  <b>Geopende flessen om op te letten</b>
+  <b>{{ _("Geopende flessen om op te letten") }}</b>
   <ul>
     {% for it, info in alerts %}
     <li><a href="/producten/{{ it.id }}?loc={{ loc.id }}">{{ it.name or it.barcode }}</a>:
-      {% if info.state == 'over' %}{{ info.days }} dagen open, houdbaar ±{{ info.limit }} dagen na openen
-      {% else %}nog ±{{ info.left }} dagen goed (open sinds {{ info.days }} dagen){% endif %}</li>
+      {% if info.state == 'over' %}{{ _("{days} dagen open, houdbaar ±{limit} dagen na openen", days=info.days, limit=info.limit) }}
+      {% else %}{{ _("nog ±{left} dagen goed (open sinds {days} dagen)", left=info.left, days=info.days) }}{% endif %}</li>
     {% endfor %}
   </ul>
 </div>
 {% endif %}
 
 <form method="get" class="filters" id="filters">
-  <input type="search" name="q" value="{{ q }}" placeholder="Zoek op naam, merk of barcode…" autocomplete="off">
+  <input type="search" name="q" value="{{ q }}" placeholder="{{ _('Zoek op naam, merk of barcode…') }}" autocomplete="off">
   {% if cat %}<input type="hidden" name="cat" value="{{ cat }}">{% endif %}
-  <select name="staat" aria-label="Voorraad" data-autosubmit>
-    {% for k, v in STATES.items() %}<option value="{{ k }}" {{ 'selected' if k == staat }}>{{ v }}</option>{% endfor %}
+  <select name="staat" aria-label="{{ _('Voorraad') }}" data-autosubmit>
+    {% for k, v in STATES.items() %}<option value="{{ k }}" {{ 'selected' if k == staat }}>{{ _(v) }}</option>{% endfor %}
   </select>
-  <select name="sort" aria-label="Sorteren" data-autosubmit>
-    {% for k, v in SORTS.items() %}<option value="{{ k }}" {{ 'selected' if k == sort }}>{{ v }}</option>{% endfor %}
+  <select name="sort" aria-label="{{ _('Sorteren') }}" data-autosubmit>
+    {% for k, v in SORTS.items() %}<option value="{{ k }}" {{ 'selected' if k == sort }}>{{ _(v) }}</option>{% endfor %}
   </select>
-  <button class="secondary">Zoeken</button>
+  <button class="secondary">{{ _("Zoeken") }}</button>
 </form>
 
 <div class="chips">
-  <a class="chip {{ 'on' if not cat }}" href="{{ url_with(cat='') }}">Alle <span>{{ counts['_all'] }}</span></a>
+  <a class="chip {{ 'on' if not cat }}" href="{{ url_with(cat='') }}">{{ _("Alle") }} <span>{{ counts['_all'] }}</span></a>
   {% for key, label, color in CATEGORIES %}{% if counts.get(key) %}
-  <a class="chip {{ 'on' if cat == key }}" style="--c: {{ color }}" href="{{ url_with(cat=key) }}">{{ label }} <span>{{ counts[key] }}</span></a>
+  <a class="chip {{ 'on' if cat == key }}" style="--c: {{ color }}" href="{{ url_with(cat=key) }}">{{ _(label) }} <span>{{ counts[key] }}</span></a>
   {% endif %}{% endfor %}
 </div>
 
 {% if not items %}
   <div class="empty panel">
     {% if total.n == 0 %}
-      <p><b>Deze locatie is nog leeg.</b></p>
-      <p class="muted">Scan de barcodes van je flessen. Onbekende producten worden automatisch op internet opgezocht, in een categorie ingedeeld en van een foto voorzien.</p>
-      <p><a class="button" href="/locaties/{{ loc.id }}/scannen">Begin met scannen</a></p>
+      <p><b>{{ _("Deze locatie is nog leeg.") }}</b></p>
+      <p class="muted">{{ _("Scan de barcodes van je flessen. Onbekende producten worden automatisch op internet opgezocht, in een categorie ingedeeld en van een foto voorzien.") }}</p>
+      <p><a class="button" href="/locaties/{{ loc.id }}/scannen">{{ _("Begin met scannen") }}</a></p>
     {% else %}
-      <p>Niets gevonden met deze filters. <a href="/locaties/{{ loc.id }}">Filters wissen</a></p>
+      <p>{{ _("Niets gevonden met deze filters.") }} <a href="/locaties/{{ loc.id }}">{{ _("Filters wissen") }}</a></p>
     {% endif %}
   </div>
 {% elif groups %}
   {% for key, group in groups %}
   <section class="group">
     <h2 class="group-head"><span class="dot" style="--c: {{ cat_color(key) }}"></span>{{ cat_label(key) }}
-      <span class="muted">{{ group|length }} producten · {{ group|sum(attribute='quantity') }} flessen</span></h2>
+      <span class="muted">{{ _n("{n} product", "{n} producten", group|length) }} · {{ _n("{n} fles", "{n} flessen", group|sum(attribute='quantity')) }}</span></h2>
     <div class="cards">{% for it in group %}{% include "_card.html" %}{% endfor %}</div>
   </section>
   {% endfor %}
