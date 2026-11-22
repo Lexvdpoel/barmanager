@@ -47,10 +47,11 @@ class Spec:
     all_cats: bool = False          # every product in `cats` is an exact match
     sub_words: tuple = ()           # substitutes: phrases
     sub_cats: tuple = ()            # substitutes: categories
+    not_words: tuple = ()           # a product with one of these is only a substitute (dark rum for light rum)
 
 
-def D(words=(), cats=(), sub_words=(), sub_cats=(), all_cats=False) -> Spec:
-    return Spec("drank", tuple(words), tuple(cats), all_cats, tuple(sub_words), tuple(sub_cats))
+def D(words=(), cats=(), sub_words=(), sub_cats=(), all_cats=False, not_words=()) -> Spec:
+    return Spec("drank", tuple(words), tuple(cats), all_cats, tuple(sub_words), tuple(sub_cats), tuple(not_words))
 
 
 MIXER_CATS = ("sap", "mixer", "siroop", "additief")
@@ -83,6 +84,12 @@ _whisky_us = ("bourbon", "kentucky", "tennessee", "united states", "usa", "veren
               "woodford", "bulleit", "evan williams", "knob creek", "old forester", "elijah craig")
 _whisky_irish = ("irish", "ireland", "ierland", "jameson", "bushmills", "tullamore", "paddy", "powers",
                  "redbreast", "teeling", "writers tears")
+# Aged, dark and spiced rums: fine in a Mojito if need be, but not "light rum".
+_DARK_RUM = ("dark", "black", "negra", "negro", "navy", "kraken", "myers's", "goslings", "zwart*", "donker*",
+             "spiced", "spice*", "anejo", "aged", "year*", "years", "jaar", "anos", "reserva", "reserve",
+             "gold", "oro", "dorado", "ambre", "amber", "extra viejo", "xo", "solera", "captain morgan",
+             "sailor jerry", "diplomatico", "zacapa", "don papa", "el dorado", "appleton", "plantation",
+             "7", "12", "15", "21", "23")
 _orange = ("triple sec", "cointreau", "grand marnier", "curacao", "orange liqueur", "sinaasappellikeur",
            "combier", "mandarine napoleon", "dry orange", "orange curacao")
 _vermouth = ("vermouth", "vermout", "wermut", "martini", "noilly prat", "dolin", "cinzano", "carpano",
@@ -112,8 +119,8 @@ SPECS.update({
     "grain alcohol": D(["everclear", "grain alcohol", "neutral", "spiritus"], sub_cats=["vodka"]),
     # rum
     "rum": D(cats=["rum"], all_cats=True),
-    "light rum": D(cats=["rum"], all_cats=True),
-    "white rum": D(cats=["rum"], all_cats=True),
+    "light rum": D(cats=["rum"], all_cats=True, sub_cats=["rum"], not_words=_DARK_RUM),
+    "white rum": D(cats=["rum"], all_cats=True, sub_cats=["rum"], not_words=_DARK_RUM),
     "gold rum": D(cats=["rum"], all_cats=True),
     "dark rum": D(["dark", "black", "navy", "kraken", "myers's", "goslings", "negrita", "zwart*", "donker*",
                    "spiced", "anejo", "aged", "jamaica*"], ["rum"], sub_cats=["rum"]),
@@ -393,10 +400,12 @@ def match(spec: Spec, p) -> str | None:
         # Southern Comfort / Jim Beam Peach are liqueurs that also count as whisky in the bar,
         # but they cannot stand in for real whisky (or rum, gin...) in a recipe.
         cats = cats - BASE_SPIRITS
-    if spec.all_cats and cats & set(spec.cats):
-        return "exact"
-    if spec.words and _hit(spec.words, hay) and (not spec.cats or cats & set(spec.cats)):
-        return "exact"
+    demoted = bool(spec.not_words) and _hit(spec.not_words, hay)
+    if not demoted:
+        if spec.all_cats and cats & set(spec.cats):
+            return "exact"
+        if spec.words and _hit(spec.words, hay) and (not spec.cats or cats & set(spec.cats)):
+            return "exact"
     if spec.sub_words:
         if _hit(spec.sub_words, hay) and (not spec.sub_cats or cats & set(spec.sub_cats)):
             return "sub"

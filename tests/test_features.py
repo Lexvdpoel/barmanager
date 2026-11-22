@@ -202,3 +202,18 @@ def test_csv_has_value_columns(admin):
     text = c.get(f"/locaties/{lid}/export.csv").text
     assert "prijs_per_fles" in text and "15,50" in text and "31,00" in text
     assert re.search(r"waarde € 31,00", c.get(f"/locaties/{lid}").text)
+
+
+def test_dark_rum_is_not_light_rum(settings):
+    db = Database(settings.db_path)
+    db.run("INSERT INTO users(username, password_hash, created_at) VALUES ('a', 'x', 0)")
+    lid = db.run("INSERT INTO locations(name, owner_id, created_at) VALUES ('bar', 1, 0)")
+    add_product(db, "Havana Club Añejo 7 Años", "rum", 1, lid, brand="Havana Club")
+    m = cocktails.Matcher(db, cocktails.stock(db, [lid]))
+    assert m.resolve("Dark rum").state == "ok"
+    assert m.resolve("Light rum").state == "vervanger" and m.resolve("White rum").state == "vervanger"
+    assert m.resolve("Rum").state == "ok"
+    add_product(db, "Bacardi Carta Blanca", "rum", 1, lid, brand="Bacardi")
+    m = cocktails.Matcher(db, cocktails.stock(db, [lid]))
+    assert [p["name"] for p in m.resolve("Light rum").products] == ["Bacardi Carta Blanca"]
+    assert [p["name"] for p in m.resolve("Dark rum").products] == ["Havana Club Añejo 7 Años"]
