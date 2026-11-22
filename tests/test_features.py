@@ -246,3 +246,15 @@ def test_kitchen_page(admin):
     assert "Limoensap" in c.get("/boodschappen").text
     c.post("/keuken", data={"csrf": csrf, "actie": "uit"})
     assert not cocktails.pantry_mode(db)
+
+
+def test_rakia_is_only_a_substitute_for_brandy(settings):
+    db = Database(settings.db_path)
+    db.run("INSERT INTO users(username, password_hash, created_at) VALUES ('a', 'x', 0)")
+    lid = db.run("INSERT INTO locations(name, owner_id, created_at) VALUES ('bar', 1, 0)")
+    add_product(db, "Raki Rrushi", "brandy", 1, lid, country="Albania")
+    m = cocktails.Matcher(db, cocktails.stock(db, [lid]))
+    assert m.resolve("Brandy").state == "vervanger" and m.resolve("Cognac").state == "vervanger"
+    add_product(db, "Skenderbeu Brandy", "brandy", 1, lid, country="Albania")
+    m = cocktails.Matcher(db, cocktails.stock(db, [lid]))
+    assert [p["name"] for p in m.resolve("Brandy").products] == ["Skenderbeu Brandy"]

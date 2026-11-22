@@ -90,6 +90,9 @@ _DARK_RUM = ("dark", "black", "negra", "negro", "navy", "kraken", "myers's", "go
              "gold", "oro", "dorado", "ambre", "amber", "extra viejo", "xo", "solera", "captain morgan",
              "sailor jerry", "diplomatico", "zacapa", "don papa", "el dorado", "appleton", "plantation",
              "7", "12", "15", "21", "23")
+_EAU_DE_VIE = ("raki", "rakia", "rakija", "rakiya", "grappa", "pisco", "eau de vie", "slivovitz", "sljivovica",
+               "palinka", "tuica", "tsipouro", "zivania", "kirsch*", "obstler", "poire williams", "williams",
+               "schnaps", "schnapps", "orujo", "marc", "chacha", "arak")
 _orange = ("triple sec", "cointreau", "grand marnier", "curacao", "orange liqueur", "sinaasappellikeur",
            "combier", "mandarine napoleon", "dry orange", "orange curacao")
 _vermouth = ("vermouth", "vermout", "wermut", "martini", "noilly prat", "dolin", "cinzano", "carpano",
@@ -153,7 +156,9 @@ SPECS.update({
     # agave, brandy
     "tequila": D(cats=["tequila"], all_cats=True),
     "mezcal": D(["mezcal", "mescal"], ["tequila"], sub_cats=["tequila"]),
-    "brandy": D(cats=["brandy"], all_cats=True),
+    # Clear fruit spirits (rakia, grappa, pisco...) are in the brandy category, but a recipe that asks
+    # for brandy means an oak-aged one: they only count as a substitute.
+    "brandy": D(cats=["brandy"], all_cats=True, sub_cats=["brandy"], not_words=_EAU_DE_VIE),
     "cognac": D(["cognac", "hennessy", "remy martin", "martell", "courvoisier"], ["brandy"], sub_cats=["brandy"]),
     "applejack": D(["applejack", "calvados", "apple brandy", "appelbrandewijn"], sub_cats=["brandy"]),
     "apple brandy": D(["applejack", "calvados", "apple brandy", "appelbrandewijn"], sub_cats=["brandy"]),
